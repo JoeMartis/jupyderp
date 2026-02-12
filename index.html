@@ -525,7 +525,9 @@
 '            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + cell.outputHtml + "</div>"); }',
 '            if (cell.images && cell.images.length) {',
 '                for (var i = 0; i < cell.images.length; i++) {',
-'                    parts.push("<img src=\\"data:image/png;base64," + cell.images[i] + "\\" alt=\\"Cell output image\\">");',
+'                    var mime = (cell.images[i] && cell.images[i].mime) ? cell.images[i].mime : "image/png";',
+'                    var b64 = (cell.images[i] && cell.images[i].data) ? cell.images[i].data : cell.images[i];',
+'                    parts.push("<img src=\\"data:" + mime + ";base64," + b64 + "\\" alt=\\"Cell output image\\">");',
 '                }',
 '            }',
 '            if (cell.error) { parts.push("<div class=\\"error-output\\">" + escapeHtml(cell.error) + "</div>"); }',
@@ -564,6 +566,18 @@
 '            setTimeout(function() {',
 '                if (hasOutput(cell)) {',
 '                    outputDiv.innerHTML = "<span class=\\"output-label\\">Output:</span>" + buildOutputHtml(cell);',
+'                    if (typeof renderMathInElement !== "undefined") {',
+'                        outputDiv.querySelectorAll(".latex-output").forEach(function(el) {',
+'                            renderMathInElement(el, {',
+'                                delimiters: [',
+'                                    {left: "$$", right: "$$", display: true},',
+'                                    {left: "$", right: "$", display: false},',
+'                                    {left: "\\\\(", right: "\\\\)", display: false},',
+'                                    {left: "\\\\[", right: "\\\\]", display: true}',
+'                                ]',
+'                            });',
+'                        });',
+'                    }',
 '                } else {',
 '                    outputDiv.innerHTML = "<span style=\\"color: var(--text-secondary);\\">Cell executed successfully (no output)</span>";',
 '                }',
@@ -599,7 +613,7 @@
 '            notebookCells.forEach(function(cell, index) { container.appendChild(renderCell(cell, index)); });',
 '            if (typeof Prism !== "undefined") { Prism.highlightAll(); }',
 '            if (typeof renderMathInElement !== "undefined") {',
-'                document.querySelectorAll(".markdown-content").forEach(function(el) {',
+'                document.querySelectorAll(".markdown-content, .latex-output").forEach(function(el) {',
 '                    renderMathInElement(el, {',
 '                        delimiters: [',
 '                            {left: "$$", right: "$$", display: true},',
@@ -705,13 +719,13 @@
                     if (data['image/png']) {
                         var imgData = data['image/png'];
                         if (Array.isArray(imgData)) imgData = imgData.join('');
-                        imageParts.push(imgData.trim());
+                        imageParts.push({data: imgData.trim(), mime: 'image/png'});
                         hasRich = true;
                     }
                     if (data['image/jpeg']) {
                         var jpgData = data['image/jpeg'];
                         if (Array.isArray(jpgData)) jpgData = jpgData.join('');
-                        imageParts.push(jpgData.trim());
+                        imageParts.push({data: jpgData.trim(), mime: 'image/jpeg'});
                         hasRich = true;
                     }
                     if (data['image/svg+xml']) {
@@ -720,6 +734,16 @@
                     }
                     if (data['text/html']) {
                         htmlParts.push(joinField(data['text/html']));
+                        hasRich = true;
+                    }
+                    if (data['text/latex']) {
+                        htmlParts.push('<div class="latex-output">' + joinField(data['text/latex']) + '</div>');
+                        hasRich = true;
+                    }
+                    // Jupyter interactive widget - use text fallback
+                    if (data['application/vnd.jupyter.widget-view+json']) {
+                        var widgetText = joinField(data['text/plain'] || '');
+                        if (widgetText) textParts.push(widgetText);
                         hasRich = true;
                     }
                     if (!hasRich && data['text/plain']) {

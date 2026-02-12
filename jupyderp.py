@@ -71,7 +71,7 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
     outputs = cell.get("outputs", [])
     text_parts = []
     html_parts = []
-    image_parts = []
+    image_parts = []  # list of {"data": base64str, "mime": "image/png"|"image/jpeg"}
     error_parts = []
 
     for out in outputs:
@@ -90,19 +90,31 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
                 if isinstance(img_data, list):
                     img_data = "".join(img_data)
                 # Strip whitespace/newlines from base64
-                image_parts.append(img_data.strip())
+                image_parts.append({"data": img_data.strip(), "mime": "image/png"})
                 has_rich = True
             if "image/jpeg" in data:
                 img_data = data["image/jpeg"]
                 if isinstance(img_data, list):
                     img_data = "".join(img_data)
-                image_parts.append(img_data.strip())
+                image_parts.append({"data": img_data.strip(), "mime": "image/jpeg"})
                 has_rich = True
             if "image/svg+xml" in data:
                 html_parts.append(_join(data["image/svg+xml"]))
                 has_rich = True
             if "text/html" in data:
                 html_parts.append(_join(data["text/html"]))
+                has_rich = True
+            if "text/latex" in data:
+                latex_src = _join(data["text/latex"])
+                html_parts.append(
+                    '<div class="latex-output">' + latex_src + '</div>'
+                )
+                has_rich = True
+            # Jupyter interactive widget – render the text fallback with a note
+            if "application/vnd.jupyter.widget-view+json" in data:
+                widget_text = _join(data.get("text/plain", ""))
+                if widget_text:
+                    text_parts.append(widget_text)
                 has_rich = True
             # Only use text/plain as fallback when no richer format exists
             if not has_rich and "text/plain" in data:
@@ -820,7 +832,9 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             }
             if (cell.images && cell.images.length) {
                 for (const img of cell.images) {
-                    parts.push('<img src="data:image/png;base64,' + img + '" alt="Cell output image">');
+                    var mime = (img && img.mime) ? img.mime : 'image/png';
+                    var b64 = (img && img.data) ? img.data : img;
+                    parts.push('<img src="data:' + mime + ';base64,' + b64 + '" alt="Cell output image">');
                 }
             }
             if (cell.error) {
@@ -902,6 +916,19 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                     outputDiv.innerHTML =
                         '<span class="output-label">Output:</span>' +
                         buildOutputHtml(cell);
+                    // Render LaTeX in any latex-output divs
+                    if (typeof renderMathInElement !== 'undefined') {
+                        outputDiv.querySelectorAll('.latex-output').forEach(function(el) {
+                            renderMathInElement(el, {
+                                delimiters: [
+                                    {left: '$$', right: '$$', display: true},
+                                    {left: '$', right: '$', display: false},
+                                    {left: '\\(', right: '\\)', display: false},
+                                    {left: '\\[', right: '\\]', display: true}
+                                ]
+                            });
+                        });
+                    }
                 } else {
                     outputDiv.innerHTML =
                         '<span style="color: var(--text-secondary);">' +
@@ -979,9 +1006,9 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 Prism.highlightAll();
             }
 
-            // Render math in markdown cells
+            // Render math in markdown cells and LaTeX outputs
             if (typeof renderMathInElement !== 'undefined') {
-                document.querySelectorAll('.markdown-content').forEach(function(el) {
+                document.querySelectorAll('.markdown-content, .latex-output').forEach(function(el) {
                     renderMathInElement(el, {
                         delimiters: [
                             {left: '$$', right: '$$', display: true},
