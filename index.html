@@ -769,10 +769,12 @@
             var cellsJson = JSON.stringify(notebookToJsCells(nb));
 
             var template = getNotebookTemplate();
+            // Use function replacements to avoid JS treating $ in
+            // cellsJson as special replacement patterns ($&, $$, etc.)
             return template
-                .replace(/\{\{TITLE\}\}/g, escapeHtmlStr(title))
-                .replace(/\{\{PRISM_LANG\}\}/g, prismLang)
-                .replace(/\{\{CELLS_JSON\}\}/g, cellsJson);
+                .replace(/\{\{TITLE\}\}/g, function() { return escapeHtmlStr(title); })
+                .replace(/\{\{PRISM_LANG\}\}/g, function() { return prismLang; })
+                .replace(/\{\{CELLS_JSON\}\}/g, function() { return cellsJson; });
         }
 
         // =====================================================================
