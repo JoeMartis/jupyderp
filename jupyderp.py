@@ -82,21 +82,36 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
 
         elif otype in ("execute_result", "display_data"):
             data = out.get("data", {})
-            # Prefer HTML renderings (dataframes, rich output)
+            # Collect ALL representations present (not elif -- they can coexist)
+            has_rich = False
+            if "image/png" in data:
+                img_data = data["image/png"]
+                # Handle both string and list-of-strings
+                if isinstance(img_data, list):
+                    img_data = "".join(img_data)
+                # Strip whitespace/newlines from base64
+                image_parts.append(img_data.strip())
+                has_rich = True
+            if "image/jpeg" in data:
+                img_data = data["image/jpeg"]
+                if isinstance(img_data, list):
+                    img_data = "".join(img_data)
+                image_parts.append(img_data.strip())
+                has_rich = True
+            if "image/svg+xml" in data:
+                html_parts.append(_join(data["image/svg+xml"]))
+                has_rich = True
             if "text/html" in data:
                 html_parts.append(_join(data["text/html"]))
-            elif "image/png" in data:
-                image_parts.append(data["image/png"])
-            elif "image/svg+xml" in data:
-                html_parts.append(_join(data["image/svg+xml"]))
-            elif "text/plain" in data:
+                has_rich = True
+            # Only use text/plain as fallback when no richer format exists
+            if not has_rich and "text/plain" in data:
                 text_parts.append(_join(data["text/plain"]))
 
         elif otype == "error":
             tb = out.get("traceback", [])
             # Strip ANSI escape sequences for readability
-            import re
-            ansi_re = re.compile(r"\x1b\[[0-9;]*m")
+            ansi_re = _re.compile(r"\x1b\[[0-9;]*m")
             for line in tb:
                 error_parts.append(ansi_re.sub("", line))
 
@@ -127,7 +142,11 @@ def notebook_to_js_cells(nb: dict) -> str:
     cells = nb.get("cells", [])
     js_cells = []
     for i, cell in enumerate(cells):
-        js_cells.append(_extract_cell_data(cell, i))
+        data = _extract_cell_data(cell, i)
+        # Skip empty code cells (no source content)
+        if data["type"] == "code" and not data.get("content", "").strip():
+            continue
+        js_cells.append(data)
     return json.dumps(js_cells, ensure_ascii=False)
 
 
@@ -832,25 +851,33 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                     : 'In [&nbsp;]:';
                 const outputVisible = hasOutput(cell);
 
+                var toggleBtn = outputVisible
+                    ? '<button class="run-button" onclick="toggleOutput(' + index + ')" ' +
+                              'aria-label="Toggle output for cell ' + index + '">' +
+                          'Toggle Output' +
+                      '</button>'
+                    : '';
+
+                var outputBlock = outputVisible
+                    ? '<div class="output-area" ' +
+                           'id="output-' + index + '" ' +
+                           'role="region" ' +
+                           'aria-label="Cell output" ' +
+                           'aria-live="polite">' +
+                          '<span class="output-label">Output:</span>' + buildOutputHtml(cell) +
+                      '</div>'
+                    : '';
+
                 cellDiv.innerHTML =
                     '<div class="cell-header">' +
                         '<span class="cell-number" aria-label="Cell number">' + execLabel + '</span>' +
                     '</div>' +
                     '<div class="cell-content">' +
                         '<div class="code-input" role="region" aria-label="Code input">' +
-                            '<button class="run-button" onclick="toggleOutput(' + index + ')" ' +
-                                    'aria-label="Toggle output for cell ' + index + '">' +
-                                'Toggle Output' +
-                            '</button>' +
+                            toggleBtn +
                             '<pre><code class="language-' + PRISM_LANG + '">' + escapeHtml(cell.content) + '</code></pre>' +
                         '</div>' +
-                        '<div class="output-area' + (outputVisible ? '' : ' hidden') + '" ' +
-                             'id="output-' + index + '" ' +
-                             'role="region" ' +
-                             'aria-label="Cell output" ' +
-                             'aria-live="polite">' +
-                            (outputVisible ? '<span class="output-label">Output:</span>' + buildOutputHtml(cell) : '') +
-                        '</div>' +
+                        outputBlock +
                         (cell.executionCount != null
                             ? '<div class="execution-count">Execution [' + cell.executionCount + ']</div>'
                             : '') +
