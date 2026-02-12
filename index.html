@@ -738,6 +738,12 @@
                         imageParts.push({data: jpgData.trim(), mime: 'image/jpeg'});
                         hasRich = true;
                     }
+                    if (data['image/gif']) {
+                        var gifData = data['image/gif'];
+                        if (Array.isArray(gifData)) gifData = gifData.join('');
+                        imageParts.push({data: gifData.trim(), mime: 'image/gif'});
+                        hasRich = true;
+                    }
                     if (data['image/svg+xml']) {
                         htmlParts.push(joinField(data['image/svg+xml']));
                         hasRich = true;
@@ -748,6 +754,10 @@
                     }
                     if (data['text/latex']) {
                         htmlParts.push('<div class="latex-output">' + joinField(data['text/latex']) + '</div>');
+                        hasRich = true;
+                    }
+                    // Google Colaboratory intrinsic JSON - coexists with text/html
+                    if (data['application/vnd.google.colaboratory.intrinsic+json']) {
                         hasRich = true;
                     }
                     // Jupyter interactive widget - use text fallback
