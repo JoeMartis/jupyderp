@@ -811,6 +811,9 @@
             var prismLang = SUPPORTED_LANGS.indexOf(language) !== -1 ? language : 'python';
             var title = customTitle || detectTitle(nb, 'Jupyter Notebook');
             var cellsJson = JSON.stringify(notebookToJsCells(nb));
+            // Escape </ so that sequences like </script> inside cell data
+            // don't prematurely close the <script> block in the generated HTML.
+            cellsJson = cellsJson.replace(/<\//g, '<\\/');
 
             var template = getNotebookTemplate();
             // Use function replacements to avoid JS treating $ in

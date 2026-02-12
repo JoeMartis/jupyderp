@@ -205,6 +205,9 @@ def build_html(nb: dict, title: str | None = None) -> str:
 
     nb_title = title or detect_title(nb, "Jupyter Notebook")
     cells_json = notebook_to_js_cells(nb)
+    # Escape </ so that sequences like </script> inside cell data don't
+    # prematurely close the <script> block in the generated HTML.
+    cells_json = cells_json.replace("</", r"<\/")
 
     return _HTML_TEMPLATE.replace("{{TITLE}}", html.escape(nb_title)).replace(
         "{{PRISM_LANG}}", prism_lang
@@ -1898,6 +1901,9 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             var prismLang = SUPPORTED_LANGS.indexOf(language) !== -1 ? language : 'python';
             var title = customTitle || detectTitle(nb, 'Jupyter Notebook');
             var cellsJson = JSON.stringify(notebookToJsCells(nb));
+            // Escape </ so that sequences like </script> inside cell data
+            // don't prematurely close the <script> block in the generated HTML.
+            cellsJson = cellsJson.replace(/<\//g, '<\\/');
 
             var template = getNotebookTemplate();
             // Use function replacements to avoid JS treating $ in
