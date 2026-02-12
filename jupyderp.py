@@ -805,7 +805,31 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
         }
 
         function renderMarkdown(content) {
-            let html = marked.parse(content);
+            // Protect LaTeX blocks from marked.js processing.
+            // marked.js interprets underscores as italics, asterisks as
+            // bold, etc., which destroys LaTeX like x_{it}^{\text{dep}}
+            // or \begin{align*}. We extract them first, run marked, then
+            // restore them.
+            var mathBlocks = [];
+            function stash(match) {
+                var id = '\x00MATH' + mathBlocks.length + '\x00';
+                mathBlocks.push(match);
+                return id;
+            }
+            // Order matters: grab display math ($$) before inline ($)
+            var safe = content
+                .replace(/\$\$([\s\S]*?)\$\$/g, stash)
+                .replace(/\\\[([\s\S]*?)\\\]/g, stash)
+                .replace(/\\\((.*?)\\\)/g, stash)
+                .replace(/(?<![\\$])\$(?!\$)(.+?)\$/g, stash);
+
+            var html = marked.parse(safe);
+
+            // Restore stashed math blocks
+            for (var i = 0; i < mathBlocks.length; i++) {
+                html = html.replace('\x00MATH' + i + '\x00', mathBlocks[i]);
+            }
+
             const tempDiv = document.createElement('div');
             tempDiv.innerHTML = html;
             if (typeof renderMathInElement !== 'undefined') {
@@ -867,6 +891,12 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                     ? 'In [' + cell.executionCount + ']:'
                     : 'In [&nbsp;]:';
 
+                // Show pre-computed output immediately if the cell has output
+                var outputVisible = hasOutput(cell);
+                var outputContent = outputVisible
+                    ? '<span class="output-label">Output:</span>' + buildOutputHtml(cell)
+                    : '';
+
                 cellDiv.innerHTML =
                     '<div class="cell-header">' +
                         '<span class="cell-number" aria-label="Cell number">' + execLabel + '</span>' +
@@ -879,11 +909,12 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                             '</button>' +
                             '<pre><code class="language-' + PRISM_LANG + '">' + escapeHtml(cell.content) + '</code></pre>' +
                         '</div>' +
-                        '<div class="output-area hidden" ' +
+                        '<div class="output-area' + (outputVisible ? '' : ' hidden') + '" ' +
                              'id="output-' + index + '" ' +
                              'role="region" ' +
                              'aria-label="Cell output" ' +
                              'aria-live="polite">' +
+                            outputContent +
                         '</div>' +
                     '</div>';
             }
