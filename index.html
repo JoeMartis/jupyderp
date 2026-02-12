@@ -3,80 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Module 1, Lecture 1: Play with Numbers and Text</title>
-
-    <!-- Prism for syntax highlighting with accessible theme -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
-
-    <!-- Marked for Markdown -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-    <!-- KaTeX for math -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"></script>
-
+    <title>jupyderp - Accessible Notebook Converter</title>
     <style>
         :root {
-            /* High contrast color scheme */
             --bg-primary: #ffffff;
             --bg-secondary: #f5f5f5;
-            --bg-code: #1e1e1e;
             --text-primary: #000000;
             --text-secondary: #333333;
-            --text-code: #f8f8f2;
             --accent-primary: #0066cc;
             --accent-hover: #0052a3;
             --border-color: #666666;
-            --output-bg: #fafafa;
             --success-color: #008000;
             --error-color: #cc0000;
-
-            /* Font sizes for accessibility */
             --font-size-base: 18px;
-            --font-size-small: 16px;
-            --font-size-code: 16px;
-            --font-size-h1: 32px;
-            --font-size-h2: 28px;
-            --font-size-h3: 24px;
-            --line-height: 1.6;
-            --code-line-height: 1.8;
         }
 
-        /* Dark mode support */
         @media (prefers-color-scheme: dark) {
             :root {
                 --bg-primary: #1a1a1a;
                 --bg-secondary: #2a2a2a;
-                --bg-code: #000000;
                 --text-primary: #ffffff;
                 --text-secondary: #e0e0e0;
-                --text-code: #f8f8f2;
                 --accent-primary: #4da6ff;
                 --accent-hover: #66b3ff;
                 --border-color: #999999;
-                --output-bg: #2a2a2a;
             }
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             font-size: var(--font-size-base);
-            line-height: var(--line-height);
+            line-height: 1.6;
             color: var(--text-primary);
-            background-color: var(--bg-primary);
+            background: var(--bg-primary);
             padding: 20px;
         }
 
-        /* Skip to main content link for screen readers */
         .skip-link {
             position: absolute;
             top: -40px;
@@ -87,13 +51,10 @@
             text-decoration: none;
             z-index: 100;
         }
-
-        .skip-link:focus {
-            top: 0;
-        }
+        .skip-link:focus { top: 0; }
 
         .container {
-            max-width: 1200px;
+            max-width: 800px;
             margin: 0 auto;
         }
 
@@ -103,477 +64,191 @@
             padding: 30px;
             border-radius: 8px;
             margin-bottom: 30px;
+            text-align: center;
         }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { font-size: var(--font-size-base); opacity: 0.9; }
 
-        .header h1 {
-            font-size: var(--font-size-h1);
-            margin-bottom: 10px;
-            font-weight: 600;
-        }
-
-        .header p {
-            font-size: var(--font-size-base);
-        }
-
-        .toolbar {
+        .upload-section {
             background: var(--bg-secondary);
-            padding: 20px;
-            border-radius: 8px;
+            border: 3px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 60px 40px;
+            text-align: center;
             margin-bottom: 30px;
-            border: 2px solid var(--border-color);
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
-            align-items: center;
+            transition: border-color 0.2s, background 0.2s;
         }
-
-        .btn {
-            background: var(--accent-primary);
-            color: white;
-            border: 2px solid transparent;
-            padding: 12px 24px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: var(--font-size-base);
-            font-weight: 500;
-            transition: all 0.2s ease;
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            min-height: 44px; /* WCAG minimum touch target */
+        .upload-section.drag-over {
+            border-color: var(--accent-primary);
+            background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
         }
-
-        .btn:hover, .btn:focus {
-            background: var(--accent-hover);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-            outline: 3px solid var(--accent-primary);
-            outline-offset: 2px;
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn.secondary {
-            background: #666666;
-        }
-
-        .btn.secondary:hover, .btn.secondary:focus {
-            background: #555555;
-        }
-
-        /* Cells */
-        .cell {
-            background: var(--bg-primary);
-            margin-bottom: 20px;
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            overflow: hidden;
-        }
-
-        .cell:focus-within {
-            outline: 3px solid var(--accent-primary);
-            outline-offset: 2px;
-        }
-
-        .cell-header {
-            padding: 15px 20px;
-            background: var(--bg-secondary);
-            border-bottom: 2px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .cell-number {
-            color: var(--text-secondary);
-            font-size: var(--font-size-base);
-            font-weight: 600;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-        }
-
-        .cell-content {
-            padding: 20px;
-        }
-
-        /* Markdown cells */
-        .markdown-content {
-            color: var(--text-primary);
-            font-size: var(--font-size-base);
-            line-height: var(--line-height);
-        }
-
-        .markdown-content h1 {
-            font-size: var(--font-size-h1);
-            font-weight: 600;
-            margin: 30px 0 20px 0;
-            padding-bottom: 10px;
-            border-bottom: 3px solid var(--border-color);
-        }
-
-        .markdown-content h2 {
-            font-size: var(--font-size-h2);
-            font-weight: 600;
-            margin: 25px 0 15px 0;
-        }
-
-        .markdown-content h3 {
-            font-size: var(--font-size-h3);
-            font-weight: 600;
-            margin: 20px 0 10px 0;
-        }
-
-        .markdown-content p {
+        .upload-section h2 {
+            font-size: 24px;
             margin-bottom: 15px;
-            line-height: var(--line-height);
+        }
+        .upload-section p {
+            color: var(--text-secondary);
+            margin-bottom: 25px;
         }
 
-        .markdown-content ul, .markdown-content ol {
-            margin: 15px 0 15px 30px;
-            line-height: var(--line-height);
-        }
-
-        .markdown-content li {
-            margin-bottom: 8px;
-            line-height: var(--line-height);
-        }
-
-        .markdown-content strong {
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-
-        .markdown-content em {
-            font-style: italic;
-        }
-
-        .markdown-content code {
-            background: var(--bg-secondary);
-            padding: 3px 8px;
-            border-radius: 4px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: var(--font-size-code);
-            border: 1px solid var(--border-color);
-        }
-
-        .markdown-content pre {
-            background: var(--bg-code);
-            color: var(--text-code);
-            padding: 20px;
-            border-radius: 8px;
-            overflow-x: auto;
-            margin: 20px 0;
-            font-size: var(--font-size-code);
-            line-height: var(--code-line-height);
-            border: 2px solid var(--border-color);
-        }
-
-        .markdown-content pre code {
-            background: none;
-            border: none;
-            padding: 0;
-            color: inherit;
-        }
-
-        .markdown-content a {
-            color: var(--accent-primary);
-            text-decoration: underline;
-            font-weight: 500;
-        }
-
-        .markdown-content a:hover, .markdown-content a:focus {
-            color: var(--accent-hover);
-            outline: 2px solid var(--accent-primary);
-            outline-offset: 2px;
-        }
-
-        .markdown-content table {
-            border-collapse: collapse;
-            width: 100%;
-            margin: 20px 0;
-            font-size: var(--font-size-base);
-        }
-
-        .markdown-content th, .markdown-content td {
-            border: 2px solid var(--border-color);
-            padding: 12px 15px;
-            text-align: left;
-        }
-
-        .markdown-content th {
-            background: var(--bg-secondary);
-            font-weight: 700;
-        }
-
-        .markdown-content img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        /* Code cells */
-        .code-input {
-            background: var(--bg-code);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 10px;
+        .file-input-wrapper {
             position: relative;
-            border: 2px solid var(--border-color);
+            display: inline-block;
         }
-
-        .code-input pre {
-            margin: 0;
-            color: var(--text-code);
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: var(--font-size-code);
-            line-height: var(--code-line-height);
-            overflow-x: auto;
-        }
-
-        .code-input code {
-            font-size: var(--font-size-code) !important;
-            line-height: var(--code-line-height) !important;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace !important;
-        }
-
-        /* Custom syntax highlighting for better readability */
-        .token.comment {
-            color: #6a9955;
-            font-style: italic;
-        }
-
-        .token.string {
-            color: #ce9178;
-        }
-
-        .token.keyword {
-            color: #569cd6;
-            font-weight: 600;
-        }
-
-        .token.function {
-            color: #dcdcaa;
-        }
-
-        .token.number {
-            color: #b5cea8;
-        }
-
-        .token.operator {
-            color: #d4d4d4;
-        }
-
-        .run-button {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            background: var(--accent-primary);
-            color: white;
-            border: 2px solid white;
-            padding: 8px 16px;
-            border-radius: 6px;
-            font-size: var(--font-size-small);
-            font-weight: 600;
-            cursor: pointer;
-            min-height: 44px;
-        }
-
-        .run-button:hover, .run-button:focus {
-            background: var(--accent-hover);
-            outline: 3px solid white;
-            outline-offset: 2px;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            color: var(--text-secondary);
-            font-size: var(--font-size-base);
-            padding: 10px 0;
-        }
-
-        .loading-spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid var(--border-color);
-            border-top-color: var(--accent-primary);
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .output-area {
-            background: var(--output-bg);
-            border: 2px solid var(--border-color);
-            border-radius: 8px;
-            padding: 20px;
-            margin-top: 15px;
-            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-            font-size: var(--font-size-code);
-            line-height: var(--code-line-height);
-            color: var(--text-primary);
-            white-space: pre-wrap;
-            word-wrap: break-word;
-            max-height: 500px;
-            overflow-y: auto;
-        }
-
-        .output-area.hidden {
-            display: none;
-        }
-
-        .output-label {
-            display: block;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: var(--text-secondary);
-            font-size: var(--font-size-small);
-        }
-
-        .output-area .html-output {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-        }
-
-        .output-area .html-output table {
-            border-collapse: collapse;
-            font-size: var(--font-size-base);
-            width: 100%;
-            margin: 10px 0;
-        }
-
-        .output-area .html-output th,
-        .output-area .html-output td {
-            padding: 10px 15px;
-            border: 2px solid var(--border-color);
-            text-align: left;
-        }
-
-        .output-area .html-output th {
-            background: var(--bg-secondary);
-            font-weight: 700;
-            color: var(--text-primary);
-        }
-
-        .output-area .error-output {
-            color: var(--error-color);
-            white-space: pre-wrap;
-        }
-
-        .output-area img {
-            max-width: 100%;
-            height: auto;
-        }
-
-        /* Loading animation */
-        .loading {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 10px;
-        }
-
-        .loading-spinner {
-            width: 24px;
-            height: 24px;
-            border: 3px solid var(--accent-primary);
-            border-radius: 50%;
-            border-top-color: transparent;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        .execution-count {
-            color: var(--text-secondary);
-            font-size: var(--font-size-small);
-            margin-top: 10px;
-            font-style: italic;
-        }
-
-        /* Accessibility improvements */
-        .visually-hidden {
+        .file-input-wrapper input[type="file"] {
             position: absolute;
             width: 1px;
             height: 1px;
             padding: 0;
             margin: -1px;
             overflow: hidden;
-            clip: rect(0, 0, 0, 0);
-            white-space: nowrap;
-            border-width: 0;
+            clip: rect(0,0,0,0);
+            border: 0;
         }
 
-        /* Focus indicators */
+        .btn {
+            background: var(--accent-primary);
+            color: white;
+            border: 2px solid transparent;
+            padding: 14px 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn:hover, .btn:focus {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .title-field {
+            margin-bottom: 30px;
+        }
+        .title-field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .title-field input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: var(--font-size-base);
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 44px;
+        }
+        .title-field input:focus {
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+
+        .file-name {
+            margin-top: 15px;
+            font-weight: 600;
+            color: var(--success-color);
+        }
+        .file-name:empty { display: none; }
+
+        .status {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+        .status.visible { display: block; }
+        .status.success {
+            background: color-mix(in srgb, var(--success-color) 10%, var(--bg-secondary));
+            border: 2px solid var(--success-color);
+            color: var(--success-color);
+        }
+        .status.error {
+            background: color-mix(in srgb, var(--error-color) 10%, var(--bg-secondary));
+            border: 2px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        .result-actions {
+            display: none;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        .result-actions.visible {
+            display: flex;
+        }
+
+        .preview-frame {
+            display: none;
+            width: 100%;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            min-height: 600px;
+            background: white;
+        }
+        .preview-frame.visible { display: block; }
+
+        .instructions {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .instructions h3 { margin-bottom: 10px; }
+        .instructions ol {
+            margin-left: 25px;
+        }
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 20px;
+            font-size: 16px;
+        }
+
         *:focus {
             outline: 3px solid var(--accent-primary);
             outline-offset: 2px;
         }
 
-        /* Print styles */
-        @media print {
-            body {
-                font-size: 12pt;
-                line-height: 1.5;
-            }
-
-            .toolbar, .run-button {
-                display: none;
-            }
-
-            .cell {
-                page-break-inside: avoid;
-            }
-        }
-
-        /* High contrast mode support */
-        @media (prefers-contrast: high) {
-            :root {
-                --border-color: #000000;
-                --accent-primary: #0000ff;
-                --bg-code: #000000;
-                --text-code: #ffffff;
-            }
-        }
-
-        /* Reduced motion support */
         @media (prefers-reduced-motion: reduce) {
             * {
                 animation-duration: 0.01ms !important;
-                animation-iteration-count: 1 !important;
                 transition-duration: 0.01ms !important;
             }
         }
 
-        /* Mobile responsive design */
+        @media (prefers-contrast: high) {
+            :root {
+                --border-color: #000000;
+                --accent-primary: #0000ff;
+            }
+        }
+
         @media (max-width: 768px) {
-            body {
-                font-size: 16px;
-                padding: 10px;
-            }
-
-            .header {
-                padding: 20px;
-            }
-
-            .toolbar {
-                flex-direction: column;
-                align-items: stretch;
-            }
-
-            .btn {
-                width: 100%;
-                justify-content: center;
-            }
-
-            .code-input pre {
-                font-size: 14px;
-            }
+            body { padding: 10px; }
+            .upload-section { padding: 30px 20px; }
+            .result-actions { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -582,259 +257,642 @@
 
     <div class="container">
         <header class="header" role="banner">
-            <h1>Module 1, Lecture 1: Play with Numbers and Text</h1>
-            <p>Interactive accessible notebook viewer &mdash; generated by jupyderp</p>
+            <h1>jupyderp</h1>
+            <p>Convert Jupyter notebooks to fully accessible interactive HTML</p>
         </header>
 
-        <nav class="toolbar" role="navigation" aria-label="Notebook controls">
-            <button class="btn" onclick="runAllCells()" aria-label="Run all code cells">
-                <span aria-hidden="true">&#9654;</span> Run All Cells
-            </button>
-            <button class="btn secondary" onclick="clearOutputs()" aria-label="Clear all cell outputs">
-                <span aria-hidden="true">&#9003;</span> Clear All Outputs
-            </button>
-            <button class="btn secondary" onclick="resetNotebook()" aria-label="Reset notebook to initial state">
-                <span aria-hidden="true">&#8635;</span> Reset Notebook
-            </button>
-        </nav>
-
         <main id="main-content" role="main">
-            <div id="notebook" aria-label="Notebook cells"></div>
+            <div class="instructions" role="region" aria-label="Instructions">
+                <h3>How it works</h3>
+                <ol>
+                    <li>Upload a <code>.ipynb</code> Jupyter notebook file</li>
+                    <li>Optionally set a custom page title</li>
+                    <li>Click <strong>Convert</strong> to generate an accessible HTML page</li>
+                    <li>Preview inline or download the result</li>
+                </ol>
+                <p style="margin-top: 12px; color: var(--text-secondary);">
+                    Everything runs in your browser &mdash; no files are uploaded to any server.
+                </p>
+            </div>
+
+            <form id="upload-form" aria-label="Notebook upload form">
+                <div class="upload-section" id="drop-zone" role="region" aria-label="File upload area">
+                    <h2>Upload Notebook</h2>
+                    <p>Drag and drop a .ipynb file here, or click to browse</p>
+                    <div class="file-input-wrapper">
+                        <label class="btn" for="file-input" role="button" tabindex="0">
+                            Choose File
+                        </label>
+                        <input type="file" id="file-input" name="notebook"
+                               accept=".ipynb,application/json"
+                               aria-describedby="file-name-display">
+                    </div>
+                    <div class="file-name" id="file-name-display" aria-live="polite"></div>
+                </div>
+
+                <div class="title-field">
+                    <label for="custom-title">Custom page title (optional)</label>
+                    <input type="text" id="custom-title" name="title"
+                           placeholder="Auto-detected from first heading if left blank">
+                </div>
+
+                <button type="submit" class="btn" id="convert-btn" disabled
+                        aria-label="Convert notebook to accessible HTML">
+                    Convert to Accessible HTML
+                </button>
+            </form>
+
+            <div class="status" id="status" role="alert" aria-live="assertive"></div>
+
+            <div class="result-actions" id="result-actions">
+                <button class="btn" id="download-btn" aria-label="Download converted HTML file">
+                    Download HTML
+                </button>
+                <button class="btn" id="preview-btn" aria-label="Preview converted HTML inline">
+                    Preview
+                </button>
+                <button class="btn" id="new-tab-btn" aria-label="Open converted HTML in a new tab">
+                    Open in New Tab
+                </button>
+            </div>
+
+            <iframe class="preview-frame" id="preview-frame"
+                    title="Notebook preview" aria-label="Converted notebook preview"></iframe>
         </main>
+
+        <footer role="contentinfo">
+            <p>jupyderp &mdash; accessible notebook conversion</p>
+        </footer>
     </div>
 
+    <!-- The notebook output HTML template, stored as inert text -->
+    <script type="text/template" id="notebook-template">TEMPLATE_MARKER</script>
+
     <script>
-        // ---------- Notebook cell data (injected by jupyderp) ----------
-        const notebookCells = [{"type": "markdown", "content": "# Module 1, Lecture 1: Play with Numbers and Text\nIn this notebook, you'll:\n- Play with expressions\n- Create variables with assigments\n- Run already existing functions\n- Write your own functions\n\nThis notebook is divided into sections. You'll modify and run only code cells."}, {"type": "markdown", "content": "## Kinds of Code Lines You'll Write (Expressions)\n\nEach line below is an expression. It evaluates to one value. Each line in the cell below is intially commented out; it has a `#` at the beginning. Any line with a `#` does not run. \n\n* Uncomment each line one at a time by deleting the `#` and space\n* Run the cell by clicking the triangle to the left of the cell\n* See what the result of the expression is (and can you guess the type of the result?)"}, {"type": "code", "content": "\"hello\"\n#3.14 * 9.8**2\n#(25 + 37) * 2\n#'Maria' + 'Smith'\n#'ma'*3\n", "output": "'hello'", "outputHtml": null, "images": null, "error": null, "executionCount": 1}, {"type": "markdown", "content": "## Kinds of Code Lines You'll Write (Assignments)\n\nVariables are names for values. To determine the value for a variable name, first determine what the righ side of the equal evaluates to. Then, the name now points to that value. \n\nThere are 4 variables created in the cell below: `fname`, `lname`, `area`, and `name`. What are the values associated with these names after all lines of code run?"}, {"type": "code", "content": "fname = 'Maria'\nlname = 'Smith'\narea = 3.14 * 9.8**2\n\nname = fname + lname\n#print(name)\n", "executionCount": 9}, {"type": "markdown", "content": "## Kinds of Code Lines You'll Write (Function Calls)\n\nA function is a bunch of code that runs behind the scenes, except that all that code has been bundled up to be easily accessible by a name. There are 5 examples of function names below: `print`, `max`, `len`, `int`, and `float`. \n\nWhen you ask a function to do some work for you, the procedure is to write the name of the function and then type parentheses right after it. The parentheses hold what inputs are needed for the function to begin doing its work. Behind the scenes, the function runs whatever lines of code define it, and then gives us back one (and only one) value. That value entirely replaces the function call we just did.  \n\nUncomment each line of code below and run the cell to see what each function gives back. "}, {"type": "code", "content": "print('hello')\n# max(4,8,1,5)\n# len('Maria Smith')\n# int(5.7)\n# float(8)\n", "output": "hello\n", "outputHtml": null, "images": null, "error": null}, {"type": "markdown", "content": "## Wrong ways to print\n\nLet's dive deeper into the `print` function. Printing is the primary way of writing programs that show something to the user. Fix each of the lines below to successfully print without an error. Uncomment each line one at a time, see what error it gives, and fix it."}, {"type": "code", "content": "# print('hi'\n# print \"hola\"\n# print(ciao)\n# print(67+'41')\n# print(len(\"Maria Smith'))\n# print(ints(5.7))\n"}, {"type": "markdown", "content": "## Your First Program to Print\n\nNotice that the code that does the task for the function is indented. Indentation is how we denote code blocks. In this case, anything indented is part of the function body.\n\nRun the cell below. Each function call asks the function to run its body. There are 3 printouts, one for each function call. "}, {"type": "code", "content": "def double(x):\n  \"\"\" x is a number\n  Prints the double of x \"\"\"\n  print(x*2)\n\ndouble(5)\ndouble(17)\ndouble(-3)\n", "output": "10\n34\n-6\n", "outputHtml": null, "images": null, "error": null}, {"type": "markdown", "content": "## A Program That Saves Values\n\nRecall that making a function call replaces that call with whatever the function returns. These lines do not do anything with that return, so we don't see any value if they are just on a line. \n\n```\ndouble(5)\ndouble(17)\ndouble(-3)\n```\n\nInstead, save the results of the function call to a variable. Then you can print it, or use it future calculations.\n\n"}, {"type": "code", "content": "def double(x):\n  \"\"\" x is a number\n  Returns the double of x \"\"\"\n  return x*2\n\ndouble(5)\ndouble(17)\ndouble(-3)\n\nn1 = double(5)\nn2 = double(17)\nn3 = double(-3)\nn4 = double(n1)\n\nprint(n1, n2, n3, n4)\n", "output": "10 34 -6 20\n", "outputHtml": null, "images": null, "error": null, "executionCount": 2}, {"type": "markdown", "content": "## Test and Debug This Code"}, {"type": "code", "content": "def calculate_total(cost, tax):\n    \"\"\" cost is a number >= 0\n        tax is a number representing a percent\n    Returns the total cost, including the tax. \"\"\"\n    tax = tax*cost\n    new_cost = cost+tax\n    return cost\n\nn = calculate_total(10, 20)\nprint(n)     # should be 12.0\n", "output": "10\n", "outputHtml": null, "images": null, "error": null, "executionCount": 3}, {"type": "markdown", "content": "## Fixed Code"}, {"type": "code", "content": "def calculate_total(cost, tax):\n    \"\"\" cost is a number >= 0\n        tax is a number representing a percent\n    Returns the total cost, including the tax. \"\"\"\n    tax = tax*cost/100\n    new_cost = cost+tax\n    return new_cost\n\nn = calculate_total(10, 20)\nprint(n)     # should be 12.0\n"}, {"type": "markdown", "content": "## Getting Input\n\nThe function `input` reads whatever the user types in and saves it as a string. Even if the user enters numbers, the numbers are actually string characters representing that number. "}, {"type": "code", "content": "text = input(\"Type anything: \")\nprint(5*text)\n"}, {"type": "markdown", "content": "## Working With Types and Input\n\nCasting is the process of making a new version of an object that is of a different type. IN the cell below, two steps are being done in one in the line\n\n```\n int(input(\"Your age: \"))\n ```\n \n The first is to get the input from the user, and save it as a string. \n \n ```\n input(\"Your age: \")\n ```\n \n Then, that string value is converted to the integer version of whatever was typed in. \n \n * If the user typed in `9`: `int(\"9\")`  <-- Python knows how to do this\n * If the user typed in `hi`: `int(\"hi\")`  <-- Python gives an error with this"}, {"type": "code", "content": "num1 = input(\"Your age: \")\nprint(5*num1)\n\nnum2 = int(input(\"Your age: \"))\nprint(5*num2)\n"}];
-        const PRISM_LANG = "python";
+        // =====================================================================
+        // jupyderp client-side converter
+        // Ports the Python conversion logic so everything runs in the browser.
+        // =====================================================================
 
-        let isExecuting = false;
-        let currentCell = 0;
+        // ---------- Notebook HTML template (read from hidden script tag) ----------
+        // We build the template as a JS string to avoid escaping issues.
+        function getNotebookTemplate() {
+            return [
+'<!DOCTYPE html>',
+'<html lang="en">',
+'<head>',
+'    <meta charset="UTF-8">',
+'    <meta name="viewport" content="width=device-width, initial-scale=1.0">',
+'    <title>{{TITLE}}</title>',
+'',
+'    <!-- Prism for syntax highlighting with accessible theme -->',
+'    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet" />',
+'    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"><\\/script>',
+'    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-{{PRISM_LANG}}.min.js"><\\/script>',
+'',
+'    <!-- Marked for Markdown -->',
+'    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\\/script>',
+'',
+'    <!-- KaTeX for math -->',
+'    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">',
+'    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"><\\/script>',
+'    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/contrib/auto-render.min.js"><\\/script>',
+'',
+'    <style>',
+'        :root {',
+'            --bg-primary: #ffffff;',
+'            --bg-secondary: #f5f5f5;',
+'            --bg-code: #1e1e1e;',
+'            --text-primary: #000000;',
+'            --text-secondary: #333333;',
+'            --text-code: #f8f8f2;',
+'            --accent-primary: #0066cc;',
+'            --accent-hover: #0052a3;',
+'            --border-color: #666666;',
+'            --output-bg: #fafafa;',
+'            --success-color: #008000;',
+'            --error-color: #cc0000;',
+'            --font-size-base: 18px;',
+'            --font-size-small: 16px;',
+'            --font-size-code: 16px;',
+'            --font-size-h1: 32px;',
+'            --font-size-h2: 28px;',
+'            --font-size-h3: 24px;',
+'            --line-height: 1.6;',
+'            --code-line-height: 1.8;',
+'        }',
+'        @media (prefers-color-scheme: dark) {',
+'            :root {',
+'                --bg-primary: #1a1a1a;',
+'                --bg-secondary: #2a2a2a;',
+'                --bg-code: #000000;',
+'                --text-primary: #ffffff;',
+'                --text-secondary: #e0e0e0;',
+'                --text-code: #f8f8f2;',
+'                --accent-primary: #4da6ff;',
+'                --accent-hover: #66b3ff;',
+'                --border-color: #999999;',
+'                --output-bg: #2a2a2a;',
+'            }',
+'        }',
+'        * { margin: 0; padding: 0; box-sizing: border-box; }',
+'        body {',
+'            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;',
+'            font-size: var(--font-size-base);',
+'            line-height: var(--line-height);',
+'            color: var(--text-primary);',
+'            background-color: var(--bg-primary);',
+'            padding: 20px;',
+'        }',
+'        .skip-link { position: absolute; top: -40px; left: 0; background: var(--accent-primary); color: white; padding: 8px; text-decoration: none; z-index: 100; }',
+'        .skip-link:focus { top: 0; }',
+'        .container { max-width: 1200px; margin: 0 auto; }',
+'        .header { background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover)); color: white; padding: 30px; border-radius: 8px; margin-bottom: 30px; }',
+'        .header h1 { font-size: var(--font-size-h1); margin-bottom: 10px; font-weight: 600; }',
+'        .header p { font-size: var(--font-size-base); }',
+'        .toolbar { background: var(--bg-secondary); padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 2px solid var(--border-color); display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }',
+'        .btn { background: var(--accent-primary); color: white; border: 2px solid transparent; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: var(--font-size-base); font-weight: 500; transition: all 0.2s ease; display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }',
+'        .btn:hover, .btn:focus { background: var(--accent-hover); transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0,0,0,0.2); outline: 3px solid var(--accent-primary); outline-offset: 2px; }',
+'        .btn:active { transform: translateY(0); }',
+'        .btn.secondary { background: #666666; }',
+'        .btn.secondary:hover, .btn.secondary:focus { background: #555555; }',
+'        .cell { background: var(--bg-primary); margin-bottom: 20px; border: 2px solid var(--border-color); border-radius: 8px; overflow: hidden; }',
+'        .cell:focus-within { outline: 3px solid var(--accent-primary); outline-offset: 2px; }',
+'        .cell-header { padding: 15px 20px; background: var(--bg-secondary); border-bottom: 2px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; }',
+'        .cell-number { color: var(--text-secondary); font-size: var(--font-size-base); font-weight: 600; font-family: "Consolas", "Monaco", "Courier New", monospace; }',
+'        .cell-content { padding: 20px; }',
+'        .markdown-content { color: var(--text-primary); font-size: var(--font-size-base); line-height: var(--line-height); }',
+'        .markdown-content h1 { font-size: var(--font-size-h1); font-weight: 600; margin: 30px 0 20px 0; padding-bottom: 10px; border-bottom: 3px solid var(--border-color); }',
+'        .markdown-content h2 { font-size: var(--font-size-h2); font-weight: 600; margin: 25px 0 15px 0; }',
+'        .markdown-content h3 { font-size: var(--font-size-h3); font-weight: 600; margin: 20px 0 10px 0; }',
+'        .markdown-content p { margin-bottom: 15px; line-height: var(--line-height); }',
+'        .markdown-content ul, .markdown-content ol { margin: 15px 0 15px 30px; line-height: var(--line-height); }',
+'        .markdown-content li { margin-bottom: 8px; line-height: var(--line-height); }',
+'        .markdown-content strong { font-weight: 700; color: var(--text-primary); }',
+'        .markdown-content em { font-style: italic; }',
+'        .markdown-content code { background: var(--bg-secondary); padding: 3px 8px; border-radius: 4px; font-family: "Consolas", "Monaco", "Courier New", monospace; font-size: var(--font-size-code); border: 1px solid var(--border-color); }',
+'        .markdown-content pre { background: var(--bg-code); color: var(--text-code); padding: 20px; border-radius: 8px; overflow-x: auto; margin: 20px 0; font-size: var(--font-size-code); line-height: var(--code-line-height); border: 2px solid var(--border-color); }',
+'        .markdown-content pre code { background: none; border: none; padding: 0; color: inherit; }',
+'        .markdown-content a { color: var(--accent-primary); text-decoration: underline; font-weight: 500; }',
+'        .markdown-content a:hover, .markdown-content a:focus { color: var(--accent-hover); outline: 2px solid var(--accent-primary); outline-offset: 2px; }',
+'        .markdown-content table { border-collapse: collapse; width: 100%; margin: 20px 0; font-size: var(--font-size-base); }',
+'        .markdown-content th, .markdown-content td { border: 2px solid var(--border-color); padding: 12px 15px; text-align: left; }',
+'        .markdown-content th { background: var(--bg-secondary); font-weight: 700; }',
+'        .markdown-content img { max-width: 100%; height: auto; }',
+'        .code-input { background: var(--bg-code); border-radius: 8px; padding: 20px; margin-bottom: 10px; position: relative; border: 2px solid var(--border-color); }',
+'        .code-input pre { margin: 0; color: var(--text-code); font-family: "Consolas", "Monaco", "Courier New", monospace; font-size: var(--font-size-code); line-height: var(--code-line-height); overflow-x: auto; }',
+'        .code-input code { font-size: var(--font-size-code) !important; line-height: var(--code-line-height) !important; font-family: "Consolas", "Monaco", "Courier New", monospace !important; }',
+'        .token.comment { color: #6a9955; font-style: italic; }',
+'        .token.string { color: #ce9178; }',
+'        .token.keyword { color: #569cd6; font-weight: 600; }',
+'        .token.function { color: #dcdcaa; }',
+'        .token.number { color: #b5cea8; }',
+'        .token.operator { color: #d4d4d4; }',
+'        .run-button { position: absolute; top: 10px; right: 10px; background: var(--accent-primary); color: white; border: 2px solid white; padding: 8px 16px; border-radius: 6px; font-size: var(--font-size-small); font-weight: 600; cursor: pointer; min-height: 44px; }',
+'        .run-button:hover, .run-button:focus { background: var(--accent-hover); outline: 3px solid white; outline-offset: 2px; }',
+'        .loading { display: flex; align-items: center; gap: 12px; color: var(--text-secondary); font-size: var(--font-size-base); padding: 10px 0; }',
+'        .loading-spinner { width: 24px; height: 24px; border: 3px solid var(--border-color); border-top-color: var(--accent-primary); border-radius: 50%; animation: spin 0.8s linear infinite; }',
+'        @keyframes spin { to { transform: rotate(360deg); } }',
+'        .output-area { background: var(--output-bg); border: 2px solid var(--border-color); border-radius: 8px; padding: 20px; margin-top: 15px; font-family: "Consolas", "Monaco", "Courier New", monospace; font-size: var(--font-size-code); line-height: var(--code-line-height); color: var(--text-primary); white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow-y: auto; }',
+'        .output-area.hidden { display: none; }',
+'        .output-label { display: block; font-weight: 600; margin-bottom: 10px; color: var(--text-secondary); font-size: var(--font-size-small); }',
+'        .output-area .html-output { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }',
+'        .output-area .html-output table { border-collapse: collapse; font-size: var(--font-size-base); width: 100%; margin: 10px 0; }',
+'        .output-area .html-output th, .output-area .html-output td { padding: 10px 15px; border: 2px solid var(--border-color); text-align: left; }',
+'        .output-area .html-output th { background: var(--bg-secondary); font-weight: 700; color: var(--text-primary); }',
+'        .output-area .error-output { color: var(--error-color); white-space: pre-wrap; }',
+'        .output-area img { max-width: 100%; height: auto; }',
+'        .execution-count { color: var(--text-secondary); font-size: var(--font-size-small); margin-top: 10px; font-style: italic; }',
+'        .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }',
+'        *:focus { outline: 3px solid var(--accent-primary); outline-offset: 2px; }',
+'        @media print { body { font-size: 12pt; line-height: 1.5; } .toolbar, .run-button { display: none; } .cell { page-break-inside: avoid; } }',
+'        @media (prefers-contrast: high) { :root { --border-color: #000000; --accent-primary: #0000ff; --bg-code: #000000; --text-code: #ffffff; } }',
+'        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }',
+'        @media (max-width: 768px) { body { font-size: 16px; padding: 10px; } .header { padding: 20px; } .toolbar { flex-direction: column; align-items: stretch; } .btn { width: 100%; justify-content: center; } .code-input pre { font-size: 14px; } }',
+'    </style>',
+'</head>',
+'<body>',
+'    <a href="#main-content" class="skip-link">Skip to main content</a>',
+'    <div class="container">',
+'        <header class="header" role="banner">',
+'            <h1>{{TITLE}}</h1>',
+'            <p>Interactive accessible notebook viewer &mdash; generated by jupyderp</p>',
+'        </header>',
+'        <nav class="toolbar" role="navigation" aria-label="Notebook controls">',
+'            <button class="btn" onclick="runAllCells()" aria-label="Run all code cells">',
+'                <span aria-hidden="true">&#9654;</span> Run All Cells',
+'            </button>',
+'            <button class="btn secondary" onclick="clearOutputs()" aria-label="Clear all cell outputs">',
+'                <span aria-hidden="true">&#9003;</span> Clear All Outputs',
+'            </button>',
+'            <button class="btn secondary" onclick="resetNotebook()" aria-label="Reset notebook to initial state">',
+'                <span aria-hidden="true">&#8635;</span> Reset Notebook',
+'            </button>',
+'        </nav>',
+'        <main id="main-content" role="main">',
+'            <div id="notebook" aria-label="Notebook cells"></div>',
+'        </main>',
+'    </div>',
+'    <script>',
+'        const notebookCells = {{CELLS_JSON}};',
+'        const PRISM_LANG = "{{PRISM_LANG}}";',
+'        let isExecuting = false;',
+'        let currentCell = 0;',
+'        function escapeHtml(text) {',
+'            const div = document.createElement("div");',
+'            div.textContent = text;',
+'            return div.innerHTML;',
+'        }',
+'        function renderMarkdown(content) {',
+'            let html = marked.parse(content);',
+'            const tempDiv = document.createElement("div");',
+'            tempDiv.innerHTML = html;',
+'            if (typeof renderMathInElement !== "undefined") {',
+'                renderMathInElement(tempDiv, {',
+'                    delimiters: [',
+'                        {left: "$$", right: "$$", display: true},',
+'                        {left: "$", right: "$", display: false},',
+'                        {left: "\\\\(", right: "\\\\)", display: false},',
+'                        {left: "\\\\[", right: "\\\\]", display: true}',
+'                    ]',
+'                });',
+'            }',
+'            return tempDiv.innerHTML;',
+'        }',
+'        function buildOutputHtml(cell) {',
+'            var parts = [];',
+'            if (cell.output) { parts.push(escapeHtml(cell.output)); }',
+'            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + cell.outputHtml + "</div>"); }',
+'            if (cell.images && cell.images.length) {',
+'                for (var i = 0; i < cell.images.length; i++) {',
+'                    parts.push("<img src=\\"data:image/png;base64," + cell.images[i] + "\\" alt=\\"Cell output image\\">");',
+'                }',
+'            }',
+'            if (cell.error) { parts.push("<div class=\\"error-output\\">" + escapeHtml(cell.error) + "</div>"); }',
+'            return parts.join("\\n");',
+'        }',
+'        function hasOutput(cell) {',
+'            return !!(cell.output || cell.outputHtml || (cell.images && cell.images.length) || cell.error);',
+'        }',
+'        function renderCell(cell, index) {',
+'            var cellDiv = document.createElement("div");',
+'            cellDiv.className = "cell " + (cell.type === "code" ? "code-cell" : "markdown-cell");',
+'            cellDiv.id = "cell-" + index;',
+'            cellDiv.setAttribute("role", "article");',
+'            cellDiv.setAttribute("aria-label", cell.type + " cell " + index);',
+'            if (cell.type === "markdown") {',
+'                cellDiv.innerHTML = "<div class=\\"cell-content\\"><div class=\\"markdown-content\\">" + renderMarkdown(cell.content) + "</div></div>";',
+'            } else {',
+'                var execLabel = cell.executionCount != null ? "In [" + cell.executionCount + "]:" : "In [&nbsp;]:";',
+'                cellDiv.innerHTML =',
+'                    "<div class=\\"cell-header\\"><span class=\\"cell-number\\" aria-label=\\"Cell number\\">" + execLabel + "</span></div>" +',
+'                    "<div class=\\"cell-content\\"><div class=\\"code-input\\" role=\\"region\\" aria-label=\\"Code input\\">" +',
+'                    "<button class=\\"run-button\\" onclick=\\"executeCell(" + index + ")\\" aria-label=\\"Run cell " + index + "\\">Run Cell</button>" +',
+'                    "<pre><code class=\\"language-" + PRISM_LANG + "\\">" + escapeHtml(cell.content) + "</code></pre>" +',
+'                    "</div><div class=\\"output-area hidden\\" id=\\"output-" + index + "\\" role=\\"region\\" aria-label=\\"Cell output\\" aria-live=\\"polite\\"></div></div>";',
+'            }',
+'            return cellDiv;',
+'        }',
+'        function executeCell(index) {',
+'            if (isExecuting) return;',
+'            var cell = notebookCells[index];',
+'            if (cell.type !== "code") return;',
+'            isExecuting = true;',
+'            var outputDiv = document.getElementById("output-" + index);',
+'            outputDiv.classList.remove("hidden");',
+'            outputDiv.innerHTML = "<div class=\\"loading\\"><div class=\\"loading-spinner\\"></div><span>Executing cell...</span></div>";',
+'            setTimeout(function() {',
+'                if (hasOutput(cell)) {',
+'                    outputDiv.innerHTML = "<span class=\\"output-label\\">Output:</span>" + buildOutputHtml(cell);',
+'                } else {',
+'                    outputDiv.innerHTML = "<span style=\\"color: var(--text-secondary);\\">Cell executed successfully (no output)</span>";',
+'                }',
+'                isExecuting = false;',
+'                if (window.runningAll) { advanceRunAll(); }',
+'            }, Math.random() * 800 + 400);',
+'        }',
+'        function runAllCells() {',
+'            if (isExecuting) return;',
+'            window.runningAll = true;',
+'            currentCell = 0;',
+'            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== "code") { currentCell++; }',
+'            if (currentCell < notebookCells.length) { executeCell(currentCell); } else { window.runningAll = false; }',
+'        }',
+'        function advanceRunAll() {',
+'            currentCell++;',
+'            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== "code") { currentCell++; }',
+'            if (currentCell < notebookCells.length) { setTimeout(function() { executeCell(currentCell); }, 300); } else { window.runningAll = false; }',
+'        }',
+'        function clearOutputs() {',
+'            window.runningAll = false;',
+'            document.querySelectorAll(".output-area").forEach(function(el) { el.classList.add("hidden"); el.innerHTML = ""; });',
+'        }',
+'        function resetNotebook() {',
+'            window.runningAll = false;',
+'            isExecuting = false;',
+'            currentCell = 0;',
+'            initNotebook();',
+'        }',
+'        function initNotebook() {',
+'            var container = document.getElementById("notebook");',
+'            container.innerHTML = "";',
+'            notebookCells.forEach(function(cell, index) { container.appendChild(renderCell(cell, index)); });',
+'            if (typeof Prism !== "undefined") { Prism.highlightAll(); }',
+'            if (typeof renderMathInElement !== "undefined") {',
+'                document.querySelectorAll(".markdown-content").forEach(function(el) {',
+'                    renderMathInElement(el, {',
+'                        delimiters: [',
+'                            {left: "$$", right: "$$", display: true},',
+'                            {left: "$", right: "$", display: false},',
+'                            {left: "\\\\(", right: "\\\\)", display: false},',
+'                            {left: "\\\\[", right: "\\\\]", display: true}',
+'                        ]',
+'                    });',
+'                });',
+'            }',
+'        }',
+'        document.addEventListener("keydown", function(e) {',
+'            if (e.ctrlKey && e.key === "Enter") {',
+'                var focusedCell = document.activeElement.closest(".cell");',
+'                if (focusedCell) { var cellId = parseInt(focusedCell.id.replace("cell-", "")); executeCell(cellId); }',
+'            }',
+'        });',
+'        document.addEventListener("DOMContentLoaded", function() { initNotebook(); });',
+'    <\\/script>',
+'</body>',
+'</html>'
+            ].join('\n');
+        }
 
-        // ---------- Helpers ----------
-        function escapeHtml(text) {
-            const div = document.createElement('div');
+        // =====================================================================
+        // Conversion logic (ported from jupyderp.py)
+        // =====================================================================
+
+        var SUPPORTED_LANGS = [
+            'python', 'javascript', 'r', 'julia', 'ruby', 'bash', 'sql',
+            'c', 'cpp', 'java', 'go', 'rust', 'typescript', 'scala'
+        ];
+
+        function joinField(lines) {
+            if (Array.isArray(lines)) return lines.join('');
+            return lines || '';
+        }
+
+        function escapeHtmlStr(text) {
+            var div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
 
-        function renderMarkdown(content) {
-            let html = marked.parse(content);
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html;
-            if (typeof renderMathInElement !== 'undefined') {
-                renderMathInElement(tempDiv, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ]
-                });
-            }
-            return tempDiv.innerHTML;
+        function stripAnsi(str) {
+            return str.replace(/\x1b\[[0-9;]*m/g, '');
         }
 
-        // ---------- Build output HTML from cell data ----------
-        function buildOutputHtml(cell) {
-            let parts = [];
-            if (cell.output) {
-                parts.push(escapeHtml(cell.output));
-            }
-            if (cell.outputHtml) {
-                parts.push('<div class="html-output">' + cell.outputHtml + '</div>');
-            }
-            if (cell.images && cell.images.length) {
-                for (const img of cell.images) {
-                    parts.push('<img src="data:image/png;base64,' + img + '" alt="Cell output image">');
+        function detectKernelLanguage(nb) {
+            var meta = nb.metadata || {};
+            var ki = meta.kernelspec || {};
+            var lang = (ki.language || '').toLowerCase();
+            if (lang) return lang;
+            var li = meta.language_info || {};
+            return (li.name || 'python').toLowerCase();
+        }
+
+        function detectTitle(nb, fallback) {
+            var cells = nb.cells || [];
+            for (var i = 0; i < cells.length; i++) {
+                if (cells[i].cell_type === 'markdown') {
+                    var source = joinField(cells[i].source);
+                    var lines = source.split('\n');
+                    for (var j = 0; j < lines.length; j++) {
+                        var stripped = lines[j].trim();
+                        if (stripped.indexOf('# ') === 0) {
+                            return stripped.replace(/^#+\s*/, '').trim();
+                        }
+                    }
+                    break;
                 }
             }
-            if (cell.error) {
-                parts.push('<div class="error-output">' + escapeHtml(cell.error) + '</div>');
+            return fallback;
+        }
+
+        function extractCellData(cell) {
+            var cellType = cell.cell_type || 'code';
+            var source = joinField(cell.source);
+
+            if (cellType === 'markdown') {
+                return { type: 'markdown', content: source };
             }
-            return parts.join('\n');
+            if (cellType === 'raw') {
+                return { type: 'markdown', content: '```\n' + source + '\n```' };
+            }
+
+            // Code cell
+            var outputs = cell.outputs || [];
+            var textParts = [];
+            var htmlParts = [];
+            var imageParts = [];
+            var errorParts = [];
+
+            for (var i = 0; i < outputs.length; i++) {
+                var out = outputs[i];
+                var otype = out.output_type || '';
+
+                if (otype === 'stream') {
+                    textParts.push(joinField(out.text));
+                } else if (otype === 'execute_result' || otype === 'display_data') {
+                    var data = out.data || {};
+                    var hasRich = false;
+                    if (data['image/png']) {
+                        var imgData = data['image/png'];
+                        if (Array.isArray(imgData)) imgData = imgData.join('');
+                        imageParts.push(imgData.trim());
+                        hasRich = true;
+                    }
+                    if (data['image/jpeg']) {
+                        var jpgData = data['image/jpeg'];
+                        if (Array.isArray(jpgData)) jpgData = jpgData.join('');
+                        imageParts.push(jpgData.trim());
+                        hasRich = true;
+                    }
+                    if (data['image/svg+xml']) {
+                        htmlParts.push(joinField(data['image/svg+xml']));
+                        hasRich = true;
+                    }
+                    if (data['text/html']) {
+                        htmlParts.push(joinField(data['text/html']));
+                        hasRich = true;
+                    }
+                    if (!hasRich && data['text/plain']) {
+                        textParts.push(joinField(data['text/plain']));
+                    }
+                } else if (otype === 'error') {
+                    var tb = out.traceback || [];
+                    for (var t = 0; t < tb.length; t++) {
+                        errorParts.push(stripAnsi(tb[t]));
+                    }
+                }
+            }
+
+            var result = { type: 'code', content: source };
+            var combinedText = textParts.join('');
+            var combinedHtml = htmlParts.join('');
+            var combinedError = errorParts.join('\n');
+
+            if (combinedText || combinedHtml || imageParts.length || combinedError) {
+                result.output = combinedText || null;
+                result.outputHtml = combinedHtml || null;
+                result.images = imageParts.length ? imageParts : null;
+                result.error = combinedError || null;
+            }
+
+            var ec = cell.execution_count;
+            if (ec != null) result.executionCount = ec;
+
+            return result;
         }
 
-        function hasOutput(cell) {
-            return !!(cell.output || cell.outputHtml || (cell.images && cell.images.length) || cell.error);
+        function notebookToJsCells(nb) {
+            var cells = nb.cells || [];
+            var jsCells = [];
+            for (var i = 0; i < cells.length; i++) {
+                var data = extractCellData(cells[i]);
+                if (data.type === 'code' && !(data.content || '').trim()) continue;
+                jsCells.push(data);
+            }
+            return jsCells;
         }
 
-        // ---------- Render one cell ----------
-        function renderCell(cell, index) {
-            const cellDiv = document.createElement('div');
-            cellDiv.className = 'cell ' + (cell.type === 'code' ? 'code-cell' : 'markdown-cell');
-            cellDiv.id = 'cell-' + index;
-            cellDiv.setAttribute('role', 'article');
-            cellDiv.setAttribute('aria-label', cell.type + ' cell ' + index);
+        function buildHtml(nb, customTitle) {
+            var language = detectKernelLanguage(nb);
+            var prismLang = SUPPORTED_LANGS.indexOf(language) !== -1 ? language : 'python';
+            var title = customTitle || detectTitle(nb, 'Jupyter Notebook');
+            var cellsJson = JSON.stringify(notebookToJsCells(nb));
 
-            if (cell.type === 'markdown') {
-                cellDiv.innerHTML =
-                    '<div class="cell-content">' +
-                        '<div class="markdown-content">' +
-                            renderMarkdown(cell.content) +
-                        '</div>' +
-                    '</div>';
+            var template = getNotebookTemplate();
+            return template
+                .replace(/\{\{TITLE\}\}/g, escapeHtmlStr(title))
+                .replace(/\{\{PRISM_LANG\}\}/g, prismLang)
+                .replace(/\{\{CELLS_JSON\}\}/g, cellsJson);
+        }
+
+        // =====================================================================
+        // UI logic
+        // =====================================================================
+
+        var dropZone = document.getElementById('drop-zone');
+        var fileInput = document.getElementById('file-input');
+        var form = document.getElementById('upload-form');
+        var convertBtn = document.getElementById('convert-btn');
+        var statusEl = document.getElementById('status');
+        var fileNameEl = document.getElementById('file-name-display');
+        var resultActions = document.getElementById('result-actions');
+        var previewFrame = document.getElementById('preview-frame');
+
+        var convertedHtml = null;
+        var convertedFileName = 'notebook.html';
+        var selectedFile = null;
+
+        // --- Drag and drop ---
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', function() {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            var files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.ipynb')) {
+                fileInput.files = files;
+                onFileSelected(files[0]);
             } else {
-                const execLabel = cell.executionCount != null
-                    ? 'In [' + cell.executionCount + ']:'
-                    : 'In [&nbsp;]:';
-
-                cellDiv.innerHTML =
-                    '<div class="cell-header">' +
-                        '<span class="cell-number" aria-label="Cell number">' + execLabel + '</span>' +
-                    '</div>' +
-                    '<div class="cell-content">' +
-                        '<div class="code-input" role="region" aria-label="Code input">' +
-                            '<button class="run-button" onclick="executeCell(' + index + ')" ' +
-                                    'aria-label="Run cell ' + index + '">' +
-                                'Run Cell' +
-                            '</button>' +
-                            '<pre><code class="language-' + PRISM_LANG + '">' + escapeHtml(cell.content) + '</code></pre>' +
-                        '</div>' +
-                        '<div class="output-area hidden" ' +
-                             'id="output-' + index + '" ' +
-                             'role="region" ' +
-                             'aria-label="Cell output" ' +
-                             'aria-live="polite">' +
-                        '</div>' +
-                    '</div>';
-            }
-
-            return cellDiv;
-        }
-
-        // ---------- Execute a single cell ----------
-        function executeCell(index) {
-            if (isExecuting) return;
-
-            var cell = notebookCells[index];
-            if (cell.type !== 'code') return;
-
-            isExecuting = true;
-            var outputDiv = document.getElementById('output-' + index);
-            var cellDiv = document.getElementById('cell-' + index);
-
-            // Show loading spinner
-            outputDiv.classList.remove('hidden');
-            outputDiv.innerHTML =
-                '<div class="loading">' +
-                    '<div class="loading-spinner"></div>' +
-                    '<span>Executing cell...</span>' +
-                '</div>';
-
-            // Simulate execution delay, then show output
-            setTimeout(function() {
-                if (hasOutput(cell)) {
-                    outputDiv.innerHTML =
-                        '<span class="output-label">Output:</span>' +
-                        buildOutputHtml(cell);
-                } else {
-                    outputDiv.innerHTML =
-                        '<span style="color: var(--text-secondary);">' +
-                        'Cell executed successfully (no output)</span>';
-                }
-
-                isExecuting = false;
-
-                // If running all, advance to the next code cell
-                if (window.runningAll) {
-                    advanceRunAll();
-                }
-            }, Math.random() * 800 + 400);
-        }
-
-        // ---------- Run All Cells ----------
-        function runAllCells() {
-            if (isExecuting) return;
-            window.runningAll = true;
-            currentCell = 0;
-
-            // Find first code cell
-            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== 'code') {
-                currentCell++;
-            }
-
-            if (currentCell < notebookCells.length) {
-                executeCell(currentCell);
-            } else {
-                window.runningAll = false;
-            }
-        }
-
-        function advanceRunAll() {
-            currentCell++;
-            // Skip to next code cell
-            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== 'code') {
-                currentCell++;
-            }
-            if (currentCell < notebookCells.length) {
-                setTimeout(function() { executeCell(currentCell); }, 300);
-            } else {
-                window.runningAll = false;
-            }
-        }
-
-        // ---------- Clear All Outputs ----------
-        function clearOutputs() {
-            window.runningAll = false;
-            document.querySelectorAll('.output-area').forEach(function(el) {
-                el.classList.add('hidden');
-                el.innerHTML = '';
-            });
-        }
-
-        // ---------- Reset Notebook ----------
-        function resetNotebook() {
-            window.runningAll = false;
-            isExecuting = false;
-            currentCell = 0;
-            initNotebook();
-        }
-
-        // ---------- Initialise ----------
-        function initNotebook() {
-            var container = document.getElementById('notebook');
-            container.innerHTML = '';
-
-            notebookCells.forEach(function(cell, index) {
-                container.appendChild(renderCell(cell, index));
-            });
-
-            // Apply syntax highlighting
-            if (typeof Prism !== 'undefined') {
-                Prism.highlightAll();
-            }
-
-            // Render math in markdown cells
-            if (typeof renderMathInElement !== 'undefined') {
-                document.querySelectorAll('.markdown-content').forEach(function(el) {
-                    renderMathInElement(el, {
-                        delimiters: [
-                            {left: '$$', right: '$$', display: true},
-                            {left: '$', right: '$', display: false},
-                            {left: '\\(', right: '\\)', display: false},
-                            {left: '\\[', right: '\\]', display: true}
-                        ]
-                    });
-                });
-            }
-        }
-
-        // Keyboard navigation: Ctrl+Enter runs focused cell
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'Enter') {
-                var focusedCell = document.activeElement.closest('.cell');
-                if (focusedCell) {
-                    var cellId = parseInt(focusedCell.id.replace('cell-', ''));
-                    executeCell(cellId);
-                }
+                showStatus('Please drop a .ipynb file.', 'error');
             }
         });
 
-        // Start the notebook
-        document.addEventListener('DOMContentLoaded', function() {
-            initNotebook();
+        dropZone.addEventListener('click', function(e) {
+            if (e.target === fileInput || e.target.closest('.file-input-wrapper')) return;
+            fileInput.click();
         });
+
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                onFileSelected(fileInput.files[0]);
+            }
+        });
+
+        function onFileSelected(file) {
+            selectedFile = file;
+            fileNameEl.textContent = 'Selected: ' + file.name;
+            convertBtn.disabled = false;
+            convertedHtml = null;
+            resultActions.classList.remove('visible');
+            previewFrame.classList.remove('visible');
+            statusEl.classList.remove('visible');
+            convertedFileName = file.name.replace(/\.ipynb$/, '.html');
+        }
+
+        // --- Form submit: read file and convert client-side ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!selectedFile) return;
+
+            convertBtn.disabled = true;
+            showStatus('Converting...', 'success');
+
+            var reader = new FileReader();
+            reader.onload = function(ev) {
+                try {
+                    var nb = JSON.parse(ev.target.result);
+                    var title = document.getElementById('custom-title').value.trim() || null;
+                    convertedHtml = buildHtml(nb, title);
+                    showStatus('Conversion successful!', 'success');
+                    resultActions.classList.add('visible');
+                } catch (err) {
+                    showStatus('Error: ' + err.message, 'error');
+                }
+                convertBtn.disabled = false;
+            };
+            reader.onerror = function() {
+                showStatus('Error reading file.', 'error');
+                convertBtn.disabled = false;
+            };
+            reader.readAsText(selectedFile);
+        });
+
+        // --- Result actions ---
+        document.getElementById('download-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            var blob = new Blob([convertedHtml], { type: 'text/html' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = convertedFileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('preview-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            previewFrame.classList.toggle('visible');
+            if (previewFrame.classList.contains('visible')) {
+                previewFrame.srcdoc = convertedHtml;
+            }
+        });
+
+        document.getElementById('new-tab-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            var blob = new Blob([convertedHtml], { type: 'text/html' });
+            var url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        });
+
+        function showStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = 'status visible ' + type;
+        }
     </script>
 </body>
 </html>
