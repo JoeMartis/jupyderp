@@ -579,6 +579,28 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             outline-offset: 2px;
         }
 
+        .loading {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            color: var(--text-secondary);
+            font-size: var(--font-size-base);
+            padding: 10px 0;
+        }
+
+        .loading-spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid var(--border-color);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
         .output-area {
             background: var(--output-bg);
             border: 2px solid var(--border-color);
@@ -760,11 +782,11 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
         </header>
 
         <nav class="toolbar" role="navigation" aria-label="Notebook controls">
-            <button class="btn" onclick="showAllOutputs()" aria-label="Show all cell outputs">
-                <span aria-hidden="true">&#9654;</span> Show All Outputs
+            <button class="btn" onclick="runAllCells()" aria-label="Run all code cells">
+                <span aria-hidden="true">&#9654;</span> Run All Cells
             </button>
-            <button class="btn secondary" onclick="hideAllOutputs()" aria-label="Hide all cell outputs">
-                <span aria-hidden="true">&#9003;</span> Hide All Outputs
+            <button class="btn secondary" onclick="clearOutputs()" aria-label="Clear all cell outputs">
+                <span aria-hidden="true">&#9003;</span> Clear All Outputs
             </button>
             <button class="btn secondary" onclick="resetNotebook()" aria-label="Reset notebook to initial state">
                 <span aria-hidden="true">&#8635;</span> Reset Notebook
@@ -780,6 +802,9 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
         // ---------- Notebook cell data (injected by jupyderp) ----------
         const notebookCells = {{CELLS_JSON}};
         const PRISM_LANG = "{{PRISM_LANG}}";
+
+        let isExecuting = false;
+        let currentCell = 0;
 
         // ---------- Helpers ----------
         function escapeHtml(text) {
@@ -808,7 +833,6 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
         // ---------- Build output HTML from cell data ----------
         function buildOutputHtml(cell) {
             let parts = [];
-
             if (cell.output) {
                 parts.push(escapeHtml(cell.output));
             }
@@ -849,24 +873,6 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 const execLabel = cell.executionCount != null
                     ? 'In [' + cell.executionCount + ']:'
                     : 'In [&nbsp;]:';
-                const outputVisible = hasOutput(cell);
-
-                var toggleBtn = outputVisible
-                    ? '<button class="run-button" onclick="toggleOutput(' + index + ')" ' +
-                              'aria-label="Toggle output for cell ' + index + '">' +
-                          'Toggle Output' +
-                      '</button>'
-                    : '';
-
-                var outputBlock = outputVisible
-                    ? '<div class="output-area" ' +
-                           'id="output-' + index + '" ' +
-                           'role="region" ' +
-                           'aria-label="Cell output" ' +
-                           'aria-live="polite">' +
-                          '<span class="output-label">Output:</span>' + buildOutputHtml(cell) +
-                      '</div>'
-                    : '';
 
                 cellDiv.innerHTML =
                     '<div class="cell-header">' +
@@ -874,58 +880,115 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                     '</div>' +
                     '<div class="cell-content">' +
                         '<div class="code-input" role="region" aria-label="Code input">' +
-                            toggleBtn +
+                            '<button class="run-button" onclick="executeCell(' + index + ')" ' +
+                                    'aria-label="Run cell ' + index + '">' +
+                                'Run Cell' +
+                            '</button>' +
                             '<pre><code class="language-' + PRISM_LANG + '">' + escapeHtml(cell.content) + '</code></pre>' +
                         '</div>' +
-                        outputBlock +
-                        (cell.executionCount != null
-                            ? '<div class="execution-count">Execution [' + cell.executionCount + ']</div>'
-                            : '') +
+                        '<div class="output-area hidden" ' +
+                             'id="output-' + index + '" ' +
+                             'role="region" ' +
+                             'aria-label="Cell output" ' +
+                             'aria-live="polite">' +
+                        '</div>' +
                     '</div>';
             }
 
             return cellDiv;
         }
 
-        // ---------- Interactive controls ----------
-        function toggleOutput(index) {
-            const cell = notebookCells[index];
-            if (!hasOutput(cell)) return;
-            const outputDiv = document.getElementById('output-' + index);
-            if (outputDiv.classList.contains('hidden')) {
-                outputDiv.classList.remove('hidden');
-                outputDiv.innerHTML = '<span class="output-label">Output:</span>' + buildOutputHtml(cell);
+        // ---------- Execute a single cell ----------
+        function executeCell(index) {
+            if (isExecuting) return;
+
+            var cell = notebookCells[index];
+            if (cell.type !== 'code') return;
+
+            isExecuting = true;
+            var outputDiv = document.getElementById('output-' + index);
+            var cellDiv = document.getElementById('cell-' + index);
+
+            // Show loading spinner
+            outputDiv.classList.remove('hidden');
+            outputDiv.innerHTML =
+                '<div class="loading">' +
+                    '<div class="loading-spinner"></div>' +
+                    '<span>Executing cell...</span>' +
+                '</div>';
+
+            // Simulate execution delay, then show output
+            setTimeout(function() {
+                if (hasOutput(cell)) {
+                    outputDiv.innerHTML =
+                        '<span class="output-label">Output:</span>' +
+                        buildOutputHtml(cell);
+                } else {
+                    outputDiv.innerHTML =
+                        '<span style="color: var(--text-secondary);">' +
+                        'Cell executed successfully (no output)</span>';
+                }
+
+                isExecuting = false;
+
+                // If running all, advance to the next code cell
+                if (window.runningAll) {
+                    advanceRunAll();
+                }
+            }, Math.random() * 800 + 400);
+        }
+
+        // ---------- Run All Cells ----------
+        function runAllCells() {
+            if (isExecuting) return;
+            window.runningAll = true;
+            currentCell = 0;
+
+            // Find first code cell
+            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== 'code') {
+                currentCell++;
+            }
+
+            if (currentCell < notebookCells.length) {
+                executeCell(currentCell);
             } else {
-                outputDiv.classList.add('hidden');
+                window.runningAll = false;
             }
         }
 
-        function showAllOutputs() {
-            notebookCells.forEach(function(cell, i) {
-                if (cell.type === 'code' && hasOutput(cell)) {
-                    const el = document.getElementById('output-' + i);
-                    if (el) {
-                        el.classList.remove('hidden');
-                        el.innerHTML = '<span class="output-label">Output:</span>' + buildOutputHtml(cell);
-                    }
-                }
-            });
+        function advanceRunAll() {
+            currentCell++;
+            // Skip to next code cell
+            while (currentCell < notebookCells.length && notebookCells[currentCell].type !== 'code') {
+                currentCell++;
+            }
+            if (currentCell < notebookCells.length) {
+                setTimeout(function() { executeCell(currentCell); }, 300);
+            } else {
+                window.runningAll = false;
+            }
         }
 
-        function hideAllOutputs() {
+        // ---------- Clear All Outputs ----------
+        function clearOutputs() {
+            window.runningAll = false;
             document.querySelectorAll('.output-area').forEach(function(el) {
                 el.classList.add('hidden');
+                el.innerHTML = '';
             });
         }
 
+        // ---------- Reset Notebook ----------
         function resetNotebook() {
-            // Re-render to original state (outputs shown by default if present)
+            window.runningAll = false;
+            isExecuting = false;
+            currentCell = 0;
             initNotebook();
         }
 
         // ---------- Initialise ----------
         function initNotebook() {
-            const container = document.getElementById('notebook');
+            var container = document.getElementById('notebook');
             container.innerHTML = '';
 
             notebookCells.forEach(function(cell, index) {
@@ -952,13 +1015,13 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             }
         }
 
-        // Keyboard navigation
+        // Keyboard navigation: Ctrl+Enter runs focused cell
         document.addEventListener('keydown', function(e) {
             if (e.ctrlKey && e.key === 'Enter') {
                 var focusedCell = document.activeElement.closest('.cell');
                 if (focusedCell) {
                     var cellId = parseInt(focusedCell.id.replace('cell-', ''));
-                    toggleOutput(cellId);
+                    executeCell(cellId);
                 }
             }
         });
