@@ -3,7 +3,11 @@
 jupyderp - Convert Jupyter notebooks to fully accessible interactive HTML pages.
 
 Usage:
+    # Convert a single notebook
     python jupyderp.py notebook.ipynb [-o output.html] [--title "Custom Title"]
+
+    # Launch the web interface
+    python jupyderp.py --serve [--port 8000]
 
 Produces a single self-contained HTML file with:
   - WCAG 2.1 AA accessible markup (skip links, ARIA, high contrast)
@@ -11,8 +15,8 @@ Produces a single self-contained HTML file with:
   - Responsive mobile layout
   - Syntax-highlighted code cells (Prism.js)
   - Rendered Markdown with math support (Marked.js + KaTeX)
-  - Interactive toolbar (Run All, Clear, Reset)
-  - Keyboard navigation (Ctrl+Enter to run focused cell)
+  - Interactive toolbar (Show/Hide/Reset outputs)
+  - Keyboard navigation (Ctrl+Enter to toggle focused cell output)
   - Print, high-contrast, and reduced-motion media queries
   - Embedded images from notebook outputs (base64)
 """
@@ -20,9 +24,13 @@ Produces a single self-contained HTML file with:
 import argparse
 import base64
 import html
+import io
 import json
 import os
+import re as _re
 import sys
+import tempfile
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 
 
@@ -939,6 +947,574 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 
 
 # ---------------------------------------------------------------------------
+# Web interface HTML template
+# ---------------------------------------------------------------------------
+_UPLOAD_PAGE = r"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>jupyderp - Accessible Notebook Converter</title>
+    <style>
+        :root {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f5f5f5;
+            --text-primary: #000000;
+            --text-secondary: #333333;
+            --accent-primary: #0066cc;
+            --accent-hover: #0052a3;
+            --border-color: #666666;
+            --success-color: #008000;
+            --error-color: #cc0000;
+            --font-size-base: 18px;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg-primary: #1a1a1a;
+                --bg-secondary: #2a2a2a;
+                --text-primary: #ffffff;
+                --text-secondary: #e0e0e0;
+                --accent-primary: #4da6ff;
+                --accent-hover: #66b3ff;
+                --border-color: #999999;
+            }
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            font-size: var(--font-size-base);
+            line-height: 1.6;
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            padding: 20px;
+        }
+
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: var(--accent-primary);
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 100;
+        }
+        .skip-link:focus { top: 0; }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
+            color: white;
+            padding: 30px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { font-size: var(--font-size-base); opacity: 0.9; }
+
+        .upload-section {
+            background: var(--bg-secondary);
+            border: 3px dashed var(--border-color);
+            border-radius: 12px;
+            padding: 60px 40px;
+            text-align: center;
+            margin-bottom: 30px;
+            transition: border-color 0.2s, background 0.2s;
+        }
+        .upload-section.drag-over {
+            border-color: var(--accent-primary);
+            background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
+        }
+        .upload-section h2 {
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        .upload-section p {
+            color: var(--text-secondary);
+            margin-bottom: 25px;
+        }
+
+        .file-input-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type="file"] {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            border: 0;
+        }
+
+        .btn {
+            background: var(--accent-primary);
+            color: white;
+            border: 2px solid transparent;
+            padding: 14px 32px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: var(--font-size-base);
+            font-weight: 600;
+            min-height: 44px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+        .btn:hover, .btn:focus {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .title-field {
+            margin-bottom: 30px;
+        }
+        .title-field label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        .title-field input {
+            width: 100%;
+            padding: 12px 16px;
+            font-size: var(--font-size-base);
+            border: 2px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 44px;
+        }
+        .title-field input:focus {
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+
+        .file-name {
+            margin-top: 15px;
+            font-weight: 600;
+            color: var(--success-color);
+        }
+        .file-name:empty { display: none; }
+
+        .status {
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            display: none;
+        }
+        .status.visible { display: block; }
+        .status.success {
+            background: color-mix(in srgb, var(--success-color) 10%, var(--bg-secondary));
+            border: 2px solid var(--success-color);
+            color: var(--success-color);
+        }
+        .status.error {
+            background: color-mix(in srgb, var(--error-color) 10%, var(--bg-secondary));
+            border: 2px solid var(--error-color);
+            color: var(--error-color);
+        }
+
+        .result-actions {
+            display: none;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 30px;
+        }
+        .result-actions.visible {
+            display: flex;
+        }
+
+        .preview-frame {
+            display: none;
+            width: 100%;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            min-height: 600px;
+            background: white;
+        }
+        .preview-frame.visible { display: block; }
+
+        .instructions {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            padding: 25px;
+            margin-bottom: 30px;
+        }
+        .instructions h3 { margin-bottom: 10px; }
+        .instructions ol {
+            margin-left: 25px;
+        }
+        .instructions li {
+            margin-bottom: 8px;
+        }
+
+        footer {
+            text-align: center;
+            color: var(--text-secondary);
+            padding: 20px;
+            font-size: 16px;
+        }
+
+        *:focus {
+            outline: 3px solid var(--accent-primary);
+            outline-offset: 2px;
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            * {
+                animation-duration: 0.01ms !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
+
+        @media (prefers-contrast: high) {
+            :root {
+                --border-color: #000000;
+                --accent-primary: #0000ff;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .upload-section { padding: 30px 20px; }
+            .result-actions { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+        }
+    </style>
+</head>
+<body>
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <div class="container">
+        <header class="header" role="banner">
+            <h1>jupyderp</h1>
+            <p>Convert Jupyter notebooks to fully accessible interactive HTML</p>
+        </header>
+
+        <main id="main-content" role="main">
+            <div class="instructions" role="region" aria-label="Instructions">
+                <h3>How it works</h3>
+                <ol>
+                    <li>Upload a <code>.ipynb</code> Jupyter notebook file</li>
+                    <li>Optionally set a custom page title</li>
+                    <li>Click <strong>Convert</strong> to generate an accessible HTML page</li>
+                    <li>Preview inline or download the result</li>
+                </ol>
+            </div>
+
+            <form id="upload-form" aria-label="Notebook upload form">
+                <div class="upload-section" id="drop-zone" role="region" aria-label="File upload area">
+                    <h2>Upload Notebook</h2>
+                    <p>Drag and drop a .ipynb file here, or click to browse</p>
+                    <div class="file-input-wrapper">
+                        <label class="btn" for="file-input" role="button" tabindex="0">
+                            Choose File
+                        </label>
+                        <input type="file" id="file-input" name="notebook"
+                               accept=".ipynb,application/json"
+                               aria-describedby="file-name-display">
+                    </div>
+                    <div class="file-name" id="file-name-display" aria-live="polite"></div>
+                </div>
+
+                <div class="title-field">
+                    <label for="custom-title">Custom page title (optional)</label>
+                    <input type="text" id="custom-title" name="title"
+                           placeholder="Auto-detected from first heading if left blank">
+                </div>
+
+                <button type="submit" class="btn" id="convert-btn" disabled
+                        aria-label="Convert notebook to accessible HTML">
+                    Convert to Accessible HTML
+                </button>
+            </form>
+
+            <div class="status" id="status" role="alert" aria-live="assertive"></div>
+
+            <div class="result-actions" id="result-actions">
+                <button class="btn" id="download-btn" aria-label="Download converted HTML file">
+                    Download HTML
+                </button>
+                <button class="btn" id="preview-btn" aria-label="Preview converted HTML inline">
+                    Preview
+                </button>
+                <button class="btn" id="new-tab-btn" aria-label="Open converted HTML in a new tab">
+                    Open in New Tab
+                </button>
+            </div>
+
+            <iframe class="preview-frame" id="preview-frame"
+                    title="Notebook preview" aria-label="Converted notebook preview"></iframe>
+        </main>
+
+        <footer role="contentinfo">
+            <p>jupyderp &mdash; accessible notebook conversion</p>
+        </footer>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const form = document.getElementById('upload-form');
+        const convertBtn = document.getElementById('convert-btn');
+        const statusEl = document.getElementById('status');
+        const fileNameEl = document.getElementById('file-name-display');
+        const resultActions = document.getElementById('result-actions');
+        const previewFrame = document.getElementById('preview-frame');
+
+        let convertedHtml = null;
+        let convertedFileName = 'notebook.html';
+
+        // --- Drag and drop ---
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+        dropZone.addEventListener('dragleave', function() {
+            dropZone.classList.remove('drag-over');
+        });
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0 && files[0].name.endsWith('.ipynb')) {
+                fileInput.files = files;
+                onFileSelected(files[0]);
+            } else {
+                showStatus('Please drop a .ipynb file.', 'error');
+            }
+        });
+
+        // --- Click the drop zone to trigger file input ---
+        dropZone.addEventListener('click', function(e) {
+            if (e.target === fileInput || e.target.closest('.file-input-wrapper')) return;
+            fileInput.click();
+        });
+
+        // --- File selection ---
+        fileInput.addEventListener('change', function() {
+            if (fileInput.files.length > 0) {
+                onFileSelected(fileInput.files[0]);
+            }
+        });
+
+        function onFileSelected(file) {
+            fileNameEl.textContent = 'Selected: ' + file.name;
+            convertBtn.disabled = false;
+            convertedHtml = null;
+            resultActions.classList.remove('visible');
+            previewFrame.classList.remove('visible');
+            statusEl.classList.remove('visible');
+            convertedFileName = file.name.replace(/\.ipynb$/, '.html');
+        }
+
+        // --- Form submit ---
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (!fileInput.files.length) return;
+
+            convertBtn.disabled = true;
+            showStatus('Converting...', 'success');
+
+            const formData = new FormData();
+            formData.append('notebook', fileInput.files[0]);
+            const title = document.getElementById('custom-title').value.trim();
+            if (title) formData.append('title', title);
+
+            fetch('/convert', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(resp) {
+                if (!resp.ok) return resp.text().then(function(t) { throw new Error(t); });
+                return resp.text();
+            })
+            .then(function(html) {
+                convertedHtml = html;
+                showStatus('Conversion successful!', 'success');
+                resultActions.classList.add('visible');
+                convertBtn.disabled = false;
+            })
+            .catch(function(err) {
+                showStatus('Error: ' + err.message, 'error');
+                convertBtn.disabled = false;
+            });
+        });
+
+        // --- Result actions ---
+        document.getElementById('download-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            const blob = new Blob([convertedHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = convertedFileName;
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('preview-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            previewFrame.classList.toggle('visible');
+            if (previewFrame.classList.contains('visible')) {
+                previewFrame.srcdoc = convertedHtml;
+            }
+        });
+
+        document.getElementById('new-tab-btn').addEventListener('click', function() {
+            if (!convertedHtml) return;
+            const blob = new Blob([convertedHtml], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');
+        });
+
+        function showStatus(msg, type) {
+            statusEl.textContent = msg;
+            statusEl.className = 'status visible ' + type;
+        }
+    </script>
+</body>
+</html>
+"""
+
+
+# ---------------------------------------------------------------------------
+# Web server
+# ---------------------------------------------------------------------------
+def _extract_boundary(content_type: str) -> bytes | None:
+    """Extract the multipart boundary from a Content-Type header."""
+    m = _re.search(r'boundary=([^\s;]+)', content_type)
+    if m:
+        return m.group(1).encode("ascii")
+    return None
+
+
+def _parse_multipart(body: bytes, boundary: bytes) -> dict[str, bytes]:
+    """Minimal multipart/form-data parser (stdlib only, no cgi)."""
+    parts: dict[str, bytes] = {}
+    delimiter = b"--" + boundary
+    segments = body.split(delimiter)
+    for seg in segments:
+        # Skip preamble and epilogue
+        if seg in (b"", b"--", b"--\r\n", b"\r\n"):
+            continue
+        seg = seg.lstrip(b"\r\n")
+        if seg.startswith(b"--"):
+            continue
+        # Split headers from body
+        sep = seg.find(b"\r\n\r\n")
+        if sep == -1:
+            continue
+        header_block = seg[:sep].decode("utf-8", errors="replace")
+        payload = seg[sep + 4:]
+        # Strip trailing \r\n
+        if payload.endswith(b"\r\n"):
+            payload = payload[:-2]
+        # Find field name
+        m = _re.search(r'name="([^"]+)"', header_block)
+        if m:
+            parts[m.group(1)] = payload
+    return parts
+
+
+class JupyderpHandler(BaseHTTPRequestHandler):
+    """HTTP request handler for the jupyderp web interface."""
+
+    def do_GET(self):
+        if self.path == "/" or self.path == "":
+            self._send_html(200, _UPLOAD_PAGE)
+        else:
+            self._send_html(404, "<h1>Not Found</h1>")
+
+    def do_POST(self):
+        if self.path != "/convert":
+            self._send_html(404, "<h1>Not Found</h1>")
+            return
+
+        content_type = self.headers.get("Content-Type", "")
+        if "multipart/form-data" not in content_type:
+            self._send_html(400, "Expected multipart/form-data")
+            return
+
+        try:
+            # Read the full body
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length)
+
+            # Extract boundary from Content-Type
+            boundary = _extract_boundary(content_type)
+            if boundary is None:
+                self._send_html(400, "Missing multipart boundary")
+                return
+
+            parts = _parse_multipart(body, boundary)
+
+            # Extract notebook JSON
+            if "notebook" not in parts:
+                self._send_html(400, "No notebook file uploaded")
+                return
+
+            nb = json.loads(parts["notebook"].decode("utf-8"))
+
+            # Optional title
+            title = None
+            if "title" in parts and parts["title"]:
+                title = parts["title"].decode("utf-8").strip() or None
+
+            result_html = build_html(nb, title=title)
+            self._send_html(200, result_html)
+
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError) as exc:
+            self._send_html(400, f"Invalid notebook file: {exc}")
+        except Exception as exc:
+            self._send_html(500, f"Conversion error: {exc}")
+
+    def _send_html(self, code, body):
+        self.send_response(code)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        encoded = body.encode("utf-8")
+        self.send_header("Content-Length", str(len(encoded)))
+        self.end_headers()
+        self.wfile.write(encoded)
+
+    def log_message(self, fmt, *args):
+        print(f"[jupyderp] {args[0]}")
+
+
+def start_server(port: int = 8000):
+    """Launch the jupyderp web interface."""
+    server = HTTPServer(("", port), JupyderpHandler)
+    print(f"jupyderp web interface running at http://localhost:{port}")
+    print("Press Ctrl+C to stop.")
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        print("\nShutting down.")
+        server.server_close()
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
@@ -946,7 +1522,10 @@ def main():
         prog="jupyderp",
         description="Convert a Jupyter notebook to a fully accessible interactive HTML page.",
     )
-    parser.add_argument("notebook", help="Path to the .ipynb file")
+    parser.add_argument(
+        "notebook", nargs="?", default=None,
+        help="Path to the .ipynb file (not needed with --serve)",
+    )
     parser.add_argument(
         "-o", "--output",
         help="Output HTML file path (default: <notebook-stem>.html)",
@@ -955,7 +1534,24 @@ def main():
         "--title",
         help="Custom page title (default: auto-detected from first heading)",
     )
+    parser.add_argument(
+        "--serve", action="store_true",
+        help="Launch the web interface instead of converting a file",
+    )
+    parser.add_argument(
+        "--port", type=int, default=8000,
+        help="Port for the web server (default: 8000)",
+    )
     args = parser.parse_args()
+
+    # --- Web server mode ---
+    if args.serve:
+        start_server(port=args.port)
+        return
+
+    # --- CLI conversion mode ---
+    if args.notebook is None:
+        parser.error("the following arguments are required: notebook (or use --serve)")
 
     nb_path = Path(args.notebook)
     if not nb_path.exists():
