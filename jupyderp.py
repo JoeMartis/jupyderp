@@ -1151,21 +1151,21 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
         .header {
             background: linear-gradient(135deg, var(--accent-primary), var(--accent-hover));
             color: white;
-            padding: 30px;
+            padding: 16px 30px;
             border-radius: 8px;
-            margin-bottom: 30px;
+            margin-bottom: 16px;
             text-align: center;
         }
-        .header h1 { font-size: 32px; margin-bottom: 10px; }
-        .header p { font-size: var(--font-size-base); opacity: 0.9; }
+        .header h1 { font-size: 24px; margin-bottom: 4px; }
+        .header p { font-size: 16px; opacity: 0.9; }
 
         .upload-section {
             background: var(--bg-secondary);
             border: 3px dashed var(--border-color);
             border-radius: 12px;
-            padding: 60px 40px;
+            padding: 24px 30px;
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 16px;
             transition: border-color 0.2s, background 0.2s;
         }
         .upload-section.drag-over {
@@ -1173,12 +1173,12 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
         }
         .upload-section h2 {
-            font-size: 24px;
-            margin-bottom: 15px;
+            font-size: 20px;
+            margin-bottom: 8px;
         }
         .upload-section p {
             color: var(--text-secondary);
-            margin-bottom: 25px;
+            margin-bottom: 12px;
         }
 
         .file-input-wrapper {
@@ -1200,7 +1200,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             background: var(--accent-primary);
             color: white;
             border: 2px solid transparent;
-            padding: 14px 32px;
+            padding: 10px 24px;
             border-radius: 6px;
             cursor: pointer;
             font-size: var(--font-size-base);
@@ -1225,16 +1225,16 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
         }
 
         .title-field {
-            margin-bottom: 30px;
+            margin-bottom: 16px;
         }
         .title-field label {
             display: block;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 4px;
         }
         .title-field input {
             width: 100%;
-            padding: 12px 16px;
+            padding: 8px 12px;
             font-size: var(--font-size-base);
             border: 2px solid var(--border-color);
             border-radius: 6px;
@@ -1248,16 +1248,16 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
         }
 
         .file-name {
-            margin-top: 15px;
+            margin-top: 8px;
             font-weight: 600;
             color: var(--success-color);
         }
         .file-name:empty { display: none; }
 
         .status {
-            padding: 20px;
+            padding: 12px 16px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 12px;
             font-weight: 500;
             display: none;
         }
@@ -1275,9 +1275,9 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 
         .result-actions {
             display: none;
-            gap: 15px;
+            gap: 10px;
             flex-wrap: wrap;
-            margin-bottom: 30px;
+            margin-bottom: 16px;
         }
         .result-actions.visible {
             display: flex;
@@ -1297,22 +1297,22 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             background: var(--bg-secondary);
             border: 2px solid var(--border-color);
             border-radius: 8px;
-            padding: 25px;
-            margin-bottom: 30px;
+            padding: 14px 20px;
+            margin-bottom: 16px;
         }
-        .instructions h3 { margin-bottom: 10px; }
+        .instructions h3 { margin-bottom: 6px; }
         .instructions ol {
             margin-left: 25px;
         }
         .instructions li {
-            margin-bottom: 8px;
+            margin-bottom: 2px;
         }
 
         footer {
             text-align: center;
             color: var(--text-secondary);
-            padding: 20px;
-            font-size: 16px;
+            padding: 12px;
+            font-size: 14px;
         }
 
         *:focus {
@@ -1336,7 +1336,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 
         @media (max-width: 768px) {
             body { padding: 10px; }
-            .upload-section { padding: 30px 20px; }
+            .upload-section { padding: 16px 16px; }
             .result-actions { flex-direction: column; }
             .btn { width: 100%; justify-content: center; }
         }
@@ -1360,7 +1360,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
                     <li>Click <strong>Convert</strong> to generate an accessible HTML page</li>
                     <li>Preview inline or download the result</li>
                 </ol>
-                <p style="margin-top: 12px; color: var(--text-secondary);">
+                <p style="margin-top: 6px; color: var(--text-secondary);">
                     Everything runs in your browser &mdash; no files are uploaded to any server.
                 </p>
             </div>
