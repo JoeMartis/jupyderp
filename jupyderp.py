@@ -856,9 +856,10 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             var html = marked.parse(safe);
 
-            // Restore stashed math blocks
+            // Restore stashed math blocks (use function replacement to avoid
+            // JS interpreting $$ as $ in the replacement string)
             for (var i = 0; i < mathBlocks.length; i++) {
-                html = html.replace('\x00MATH' + i + '\x00', mathBlocks[i]);
+                html = html.split('\x00MATH' + i + '\x00').join(mathBlocks[i]);
             }
 
             const tempDiv = document.createElement('div');
@@ -1639,7 +1640,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '                .replace(/\\\\\\((.*?)\\\\\\)/g, stash)',
 '                .replace(/(?<![\\\\$])\\$(?!\\$)(.+?)\\$/g, stash);',
 '            var html = marked.parse(safe);',
-'            for (var i = 0; i < mathBlocks.length; i++) { html = html.replace("\\x00MATH" + i + "\\x00", mathBlocks[i]); }',
+'            for (var i = 0; i < mathBlocks.length; i++) { html = html.split("\\x00MATH" + i + "\\x00").join(mathBlocks[i]); }',
 '            const tempDiv = document.createElement("div");',
 '            tempDiv.innerHTML = html;',
 '            if (typeof renderMathInElement !== "undefined") {',
