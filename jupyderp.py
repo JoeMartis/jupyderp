@@ -1901,8 +1901,8 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             var prismLang = SUPPORTED_LANGS.indexOf(language) !== -1 ? language : 'python';
             var title = customTitle || detectTitle(nb, 'Jupyter Notebook');
             var cellsJson = JSON.stringify(notebookToJsCells(nb));
-            // Escape </ so that sequences like </script> inside cell data
-            // don't prematurely close the <script> block in the generated HTML.
+            // Escape "</" so that closing-tag sequences inside cell data
+            // don't prematurely terminate the script block in generated HTML.
             cellsJson = cellsJson.replace(/<\//g, '<\\/');
 
             var template = getNotebookTemplate();
