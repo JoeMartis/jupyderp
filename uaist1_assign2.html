@@ -750,7 +750,7 @@
             if (isExecuting) return;
 
             var cell = notebookCells[index];
-            if (cell.type !== 'code') return;
+            if (!cell || cell.type !== 'code') return;
 
             isExecuting = true;
             var outputDiv = document.getElementById('output-' + index);
@@ -860,9 +860,10 @@
                 Prism.highlightAll();
             }
 
-            // Render math in markdown cells and LaTeX outputs
+            // Render math in LaTeX outputs (markdown cells already
+            // pre-rendered via katex.renderToString in renderMarkdown)
             if (typeof renderMathInElement !== 'undefined') {
-                document.querySelectorAll('.markdown-content, .latex-output').forEach(function(el) {
+                document.querySelectorAll('.latex-output').forEach(function(el) {
                     renderMathInElement(el, {
                         delimiters: [
                             {left: '$$', right: '$$', display: true},

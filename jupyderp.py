@@ -47,16 +47,18 @@ def _join(lines) -> str:
     return lines or ""
 
 
-def _escape_js(text: str) -> str:
-    """Escape a string for safe embedding inside a JS template literal (backtick)."""
-    return (
-        text.replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("${", "\\${")
-    )
+def _sanitize_html(html_str: str) -> str:
+    """Strip dangerous tags/attributes from HTML output to prevent XSS."""
+    # Remove <script>...</script> blocks
+    html_str = _re.sub(r"<script[\s>][\s\S]*?</script>", "", html_str, flags=_re.IGNORECASE)
+    # Remove event handler attributes (onclick, onerror, onload, etc.)
+    html_str = _re.sub(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)', "", html_str, flags=_re.IGNORECASE)
+    # Remove javascript: URLs in href/src/action
+    html_str = _re.sub(r'((?:href|src|action)\s*=\s*(?:"|\'))javascript:', r"\1#", html_str, flags=_re.IGNORECASE)
+    return html_str
 
 
-def _extract_cell_data(cell: dict, cell_index: int) -> dict:
+def _extract_cell_data(cell: dict) -> dict:
     """Convert one notebook cell into the JS-friendly dict used by the template."""
     cell_type = cell.get("cell_type", "code")
     source = _join(cell.get("source", []))
@@ -105,15 +107,15 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
                 image_parts.append({"data": img_data.strip(), "mime": "image/gif"})
                 has_rich = True
             if "image/svg+xml" in data:
-                html_parts.append(_join(data["image/svg+xml"]))
+                html_parts.append(_sanitize_html(_join(data["image/svg+xml"])))
                 has_rich = True
             if "text/html" in data:
-                html_parts.append(_join(data["text/html"]))
+                html_parts.append(_sanitize_html(_join(data["text/html"])))
                 has_rich = True
             if "text/latex" in data:
                 latex_src = _join(data["text/latex"])
                 html_parts.append(
-                    '<div class="latex-output">' + latex_src + '</div>'
+                    '<div class="latex-output">' + html.escape(latex_src) + '</div>'
                 )
                 has_rich = True
             # Google Colaboratory intrinsic JSON – coexists with text/html;
@@ -135,7 +137,7 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
         elif otype == "error":
             tb = out.get("traceback", [])
             # Strip ANSI escape sequences for readability
-            ansi_re = _re.compile(r"\x1b\[[0-9;]*m")
+            ansi_re = _re.compile(r"\x1b\[[0-9;:]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
             for line in tb:
                 error_parts.append(ansi_re.sub("", line))
 
@@ -165,8 +167,8 @@ def notebook_to_js_cells(nb: dict) -> str:
     """Return the notebook cells as a JSON array string for embedding in JS."""
     cells = nb.get("cells", [])
     js_cells = []
-    for i, cell in enumerate(cells):
-        data = _extract_cell_data(cell, i)
+    for cell in cells:
+        data = _extract_cell_data(cell)
         # Skip empty code cells (no source content)
         if data["type"] == "code" and not data.get("content", "").strip():
             continue
@@ -193,7 +195,7 @@ def detect_title(nb: dict, fallback: str) -> str:
             for line in source.splitlines():
                 stripped = line.strip()
                 if stripped.startswith("# "):
-                    return stripped.lstrip("# ").strip()
+                    return _re.sub(r'^#+\s*', '', stripped).strip()
             break
     return fallback
 
@@ -972,7 +974,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             if (isExecuting) return;
 
             var cell = notebookCells[index];
-            if (cell.type !== 'code') return;
+            if (!cell || cell.type !== 'code') return;
 
             isExecuting = true;
             var outputDiv = document.getElementById('output-' + index);
@@ -1082,9 +1084,10 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 Prism.highlightAll();
             }
 
-            // Render math in markdown cells and LaTeX outputs
+            // Render math in LaTeX outputs (markdown cells already
+            // pre-rendered via katex.renderToString in renderMarkdown)
             if (typeof renderMathInElement !== 'undefined') {
-                document.querySelectorAll('.markdown-content, .latex-output').forEach(function(el) {
+                document.querySelectorAll('.latex-output').forEach(function(el) {
                     renderMathInElement(el, {
                         delimiters: [
                             {left: '$$', right: '$$', display: true},
@@ -1462,9 +1465,6 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
         </footer>
     </div>
 
-    <!-- The notebook output HTML template, stored as inert text -->
-    <script type="text/template" id="notebook-template">TEMPLATE_MARKER</script>
-
     <script>
         // =====================================================================
         // jupyderp client-side converter
@@ -1710,7 +1710,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '        function executeCell(index) {',
 '            if (isExecuting) return;',
 '            var cell = notebookCells[index];',
-'            if (cell.type !== "code") return;',
+'            if (!cell || cell.type !== "code") return;',
 '            isExecuting = true;',
 '            var outputDiv = document.getElementById("output-" + index);',
 '            outputDiv.classList.remove("hidden");',
@@ -1765,7 +1765,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '            notebookCells.forEach(function(cell, index) { container.appendChild(renderCell(cell, index)); });',
 '            if (typeof Prism !== "undefined") { Prism.highlightAll(); }',
 '            if (typeof renderMathInElement !== "undefined") {',
-'                document.querySelectorAll(".markdown-content, .latex-output").forEach(function(el) {',
+'                document.querySelectorAll(".latex-output").forEach(function(el) {',
 '                    renderMathInElement(el, {',
 '                        delimiters: [',
 '                            {left: "$$", right: "$$", display: true},',
@@ -2086,7 +2086,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             var blob = new Blob([convertedHtml], { type: 'text/html' });
             var url = URL.createObjectURL(blob);
             window.open(url, '_blank');
-            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
         });
 
         function showStatus(msg, type) {
@@ -2104,7 +2104,9 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 # ---------------------------------------------------------------------------
 def _extract_boundary(content_type: str) -> bytes | None:
     """Extract the multipart boundary from a Content-Type header."""
-    m = _re.search(r'boundary=([^\s;]+)', content_type)
+    # Handle both quoted and unquoted boundary values
+    m = _re.search(r'boundary="([^"]+)"', content_type) or \
+        _re.search(r'boundary=([^\s;]+)', content_type)
     if m:
         return m.group(1).encode("ascii")
     return None
@@ -2158,8 +2160,12 @@ class JupyderpHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            # Read the full body
+            # Read the full body (limit to 100 MB to prevent DoS)
             length = int(self.headers.get("Content-Length", 0))
+            max_size = 100 * 1024 * 1024  # 100 MB
+            if length > max_size:
+                self._send_html(413, "Upload too large (max 100 MB)")
+                return
             body = self.rfile.read(length)
 
             # Extract boundary from Content-Type
@@ -2186,9 +2192,9 @@ class JupyderpHandler(BaseHTTPRequestHandler):
             self._send_html(200, result_html)
 
         except (json.JSONDecodeError, KeyError, UnicodeDecodeError) as exc:
-            self._send_html(400, f"Invalid notebook file: {exc}")
+            self._send_html(400, f"Invalid notebook file: {html.escape(str(exc))}")
         except Exception as exc:
-            self._send_html(500, f"Conversion error: {exc}")
+            self._send_html(500, f"Conversion error: {html.escape(str(exc))}")
 
     def _send_html(self, code, body):
         self.send_response(code)
@@ -2199,7 +2205,7 @@ class JupyderpHandler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def log_message(self, fmt, *args):
-        print(f"[jupyderp] {args[0]}")
+        print(f"[jupyderp] {fmt % args}" if args else f"[jupyderp] {fmt}")
 
 
 def start_server(port: int = 8000):

@@ -339,9 +339,6 @@
         </footer>
     </div>
 
-    <!-- The notebook output HTML template, stored as inert text -->
-    <script type="text/template" id="notebook-template">TEMPLATE_MARKER</script>
-
     <script>
         // =====================================================================
         // jupyderp client-side converter
@@ -587,7 +584,7 @@
 '        function executeCell(index) {',
 '            if (isExecuting) return;',
 '            var cell = notebookCells[index];',
-'            if (cell.type !== "code") return;',
+'            if (!cell || cell.type !== "code") return;',
 '            isExecuting = true;',
 '            var outputDiv = document.getElementById("output-" + index);',
 '            outputDiv.classList.remove("hidden");',
@@ -642,7 +639,7 @@
 '            notebookCells.forEach(function(cell, index) { container.appendChild(renderCell(cell, index)); });',
 '            if (typeof Prism !== "undefined") { Prism.highlightAll(); }',
 '            if (typeof renderMathInElement !== "undefined") {',
-'                document.querySelectorAll(".markdown-content, .latex-output").forEach(function(el) {',
+'                document.querySelectorAll(".latex-output").forEach(function(el) {',
 '                    renderMathInElement(el, {',
 '                        delimiters: [',
 '                            {left: "$$", right: "$$", display: true},',
@@ -963,7 +960,7 @@
             var blob = new Blob([convertedHtml], { type: 'text/html' });
             var url = URL.createObjectURL(blob);
             window.open(url, '_blank');
-            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+            setTimeout(function() { URL.revokeObjectURL(url); }, 60000);
         });
 
         function showStatus(msg, type) {
