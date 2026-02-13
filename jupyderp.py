@@ -832,6 +832,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             var safe = content
                 .replace(/\$\$([\s\S]*?)\$\$/g, stash)
                 .replace(/\\\[([\s\S]*?)\\\]/g, stash)
+                .replace(/\\begin\{([^}]+)\}([\s\S]*?)\\end\{\1\}/g, function(m) { return stash('$$' + m + '$$'); })
                 .replace(/\\\((.*?)\\\)/g, stash)
                 .replace(/(?<![\\$])\$(?!\$)(.+?)\$/g, stash);
 
@@ -1599,6 +1600,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '            var safe = content',
 '                .replace(/\\$\\$([\\s\\S]*?)\\$\\$/g, stash)',
 '                .replace(/\\\\\\[([\\s\\S]*?)\\\\\\]/g, stash)',
+'                .replace(/\\\\begin\\{([^}]+)\\}([\\s\\S]*?)\\\\end\\{\\1\\}/g, function(m) { return stash("$$" + m + "$$"); })',
 '                .replace(/\\\\\\((.*?)\\\\\\)/g, stash)',
 '                .replace(/(?<![\\\\$])\\$(?!\\$)(.+?)\\$/g, stash);',
 '            var html = marked.parse(safe);',
