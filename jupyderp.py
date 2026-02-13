@@ -856,25 +856,38 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
 
             var html = marked.parse(safe);
 
-            // Restore stashed math blocks (use function replacement to avoid
-            // JS interpreting $$ as $ in the replacement string)
+            // Restore stashed math blocks, pre-rendering with KaTeX directly
+            // to avoid issues with renderMathInElement delimiter scanning on
+            // restored innerHTML.
             for (var i = 0; i < mathBlocks.length; i++) {
-                html = html.split('\x00MATH' + i + '\x00').join(mathBlocks[i]);
+                var block = mathBlocks[i];
+                var rendered = block;
+                try {
+                    var displayMode, body;
+                    if (block.startsWith('$$')) {
+                        displayMode = true;
+                        body = block.slice(2, -2);
+                    } else if (block.startsWith('\\[')) {
+                        displayMode = true;
+                        body = block.slice(2, -2);
+                    } else if (block.startsWith('\\(')) {
+                        displayMode = false;
+                        body = block.slice(2, -2);
+                    } else if (block.startsWith('$')) {
+                        displayMode = false;
+                        body = block.slice(1, -1);
+                    }
+                    if (typeof katex !== 'undefined' && body !== undefined) {
+                        rendered = katex.renderToString(body, {
+                            displayMode: displayMode,
+                            throwOnError: false
+                        });
+                    }
+                } catch (e) { /* fallback to raw text */ }
+                html = html.split('\x00MATH' + i + '\x00').join(rendered);
             }
 
-            const tempDiv = document.createElement('div');
-            tempDiv.innerHTML = html;
-            if (typeof renderMathInElement !== 'undefined') {
-                renderMathInElement(tempDiv, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
-                    ]
-                });
-            }
-            return tempDiv.innerHTML;
+            return html;
         }
 
         // ---------- Build output HTML from cell data ----------
@@ -1640,20 +1653,21 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '                .replace(/\\\\\\((.*?)\\\\\\)/g, stash)',
 '                .replace(/(?<![\\\\$])\\$(?!\\$)(.+?)\\$/g, stash);',
 '            var html = marked.parse(safe);',
-'            for (var i = 0; i < mathBlocks.length; i++) { html = html.split("\\x00MATH" + i + "\\x00").join(mathBlocks[i]); }',
-'            const tempDiv = document.createElement("div");',
-'            tempDiv.innerHTML = html;',
-'            if (typeof renderMathInElement !== "undefined") {',
-'                renderMathInElement(tempDiv, {',
-'                    delimiters: [',
-'                        {left: "$$", right: "$$", display: true},',
-'                        {left: "$", right: "$", display: false},',
-'                        {left: "\\\\(", right: "\\\\)", display: false},',
-'                        {left: "\\\\[", right: "\\\\]", display: true}',
-'                    ]',
-'                });',
+'            for (var i = 0; i < mathBlocks.length; i++) {',
+'                var block = mathBlocks[i]; var rendered = block;',
+'                try {',
+'                    var displayMode, body;',
+'                    if (block.startsWith("$$")) { displayMode = true; body = block.slice(2, -2); }',
+'                    else if (block.startsWith("\\\\[")) { displayMode = true; body = block.slice(2, -2); }',
+'                    else if (block.startsWith("\\\\(")) { displayMode = false; body = block.slice(2, -2); }',
+'                    else if (block.startsWith("$")) { displayMode = false; body = block.slice(1, -1); }',
+'                    if (typeof katex !== "undefined" && body !== undefined) {',
+'                        rendered = katex.renderToString(body, { displayMode: displayMode, throwOnError: false });',
+'                    }',
+'                } catch (e) {}',
+'                html = html.split("\\x00MATH" + i + "\\x00").join(rendered);',
 '            }',
-'            return tempDiv.innerHTML;',
+'            return html;',
 '        }',
 '        function buildOutputHtml(cell) {',
 '            var parts = [];',
