@@ -44,7 +44,7 @@ def _join(lines) -> str:
     """Join a list-of-strings field (or return a string as-is)."""
     if isinstance(lines, list):
         return "".join(lines)
-    return lines
+    return lines or ""
 
 
 def _escape_js(text: str) -> str:
@@ -116,8 +116,11 @@ def _extract_cell_data(cell: dict, cell_index: int) -> dict:
                     '<div class="latex-output">' + latex_src + '</div>'
                 )
                 has_rich = True
-            # Google Colaboratory intrinsic JSON – coexists with text/html
+            # Google Colaboratory intrinsic JSON – coexists with text/html;
+            # use text/plain fallback when no other rich output was captured
             if "application/vnd.google.colaboratory.intrinsic+json" in data:
+                if not has_rich and "text/plain" in data:
+                    text_parts.append(_join(data["text/plain"]))
                 has_rich = True
             # Jupyter interactive widget – render the text fallback with a note
             if "application/vnd.jupyter.widget-view+json" in data:
@@ -277,6 +280,8 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 --accent-hover: #66b3ff;
                 --border-color: #999999;
                 --output-bg: #2a2a2a;
+                --success-color: #4caf50;
+                --error-color: #ff6b6b;
             }
         }
 
@@ -736,6 +741,19 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 --accent-primary: #0000ff;
                 --bg-code: #000000;
                 --text-code: #ffffff;
+                --success-color: #006400;
+                --error-color: #cc0000;
+            }
+        }
+
+        @media (prefers-contrast: high) and (prefers-color-scheme: dark) {
+            :root {
+                --border-color: #ffffff;
+                --accent-primary: #6699ff;
+                --bg-code: #000000;
+                --text-code: #ffffff;
+                --success-color: #66ff66;
+                --error-color: #ff6666;
             }
         }
 
@@ -797,7 +815,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
         </nav>
 
         <main id="main-content" role="main">
-            <div id="notebook" aria-label="Notebook cells"></div>
+            <div id="notebook" role="region" aria-label="Notebook cells"></div>
         </main>
     </div>
 
@@ -890,7 +908,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             cellDiv.className = 'cell ' + (cell.type === 'code' ? 'code-cell' : 'markdown-cell');
             cellDiv.id = 'cell-' + index;
             cellDiv.setAttribute('role', 'article');
-            cellDiv.setAttribute('aria-label', cell.type + ' cell ' + index);
+            cellDiv.setAttribute('aria-label', cell.type + ' cell ' + (index + 1));
 
             if (cell.type === 'markdown') {
                 cellDiv.innerHTML =
@@ -917,7 +935,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                     '<div class="cell-content">' +
                         '<div class="code-input" role="region" aria-label="Code input">' +
                             '<button class="run-button" onclick="executeCell(' + index + ')" ' +
-                                    'aria-label="Run cell ' + index + '">' +
+                                    'aria-label="Run cell ' + (index + 1) + '">' +
                                 'Run Cell' +
                             '</button>' +
                             '<pre><code class="language-' + PRISM_LANG + '">' + escapeHtml(cell.content) + '</code></pre>' +
@@ -1118,6 +1136,8 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
                 --accent-primary: #4da6ff;
                 --accent-hover: #66b3ff;
                 --border-color: #999999;
+                --success-color: #4caf50;
+                --error-color: #ff6b6b;
             }
         }
 
@@ -1158,7 +1178,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             text-align: center;
         }
         .header h1 { font-size: 24px; margin-bottom: 4px; }
-        .header p { font-size: 16px; opacity: 0.9; }
+        .header p { font-size: 16px; }
 
         .upload-section {
             background: var(--bg-secondary);
@@ -1173,7 +1193,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             border-color: var(--accent-primary);
             background: color-mix(in srgb, var(--accent-primary) 10%, var(--bg-secondary));
         }
-        .upload-section h2 {
+        .upload-section h3 {
             font-size: 20px;
             margin-bottom: 8px;
         }
@@ -1301,7 +1321,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             padding: 14px 20px;
             margin-bottom: 16px;
         }
-        .instructions h3 { margin-bottom: 6px; }
+        .instructions h2 { margin-bottom: 6px; }
         .instructions ol {
             margin-left: 25px;
         }
@@ -1332,6 +1352,17 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             :root {
                 --border-color: #000000;
                 --accent-primary: #0000ff;
+                --success-color: #006400;
+                --error-color: #cc0000;
+            }
+        }
+
+        @media (prefers-contrast: high) and (prefers-color-scheme: dark) {
+            :root {
+                --border-color: #ffffff;
+                --accent-primary: #6699ff;
+                --success-color: #66ff66;
+                --error-color: #ff6666;
             }
         }
 
@@ -1354,7 +1385,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 
         <main id="main-content" role="main">
             <div class="instructions" role="region" aria-label="Instructions">
-                <h3>How it works</h3>
+                <h2>How it works</h2>
                 <ol>
                     <li>Upload a <code>.ipynb</code> Jupyter notebook file</li>
                     <li>Optionally set a custom page title</li>
@@ -1368,12 +1399,13 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 
             <form id="upload-form" aria-label="Notebook upload form">
                 <div class="upload-section" id="drop-zone" role="region" aria-label="File upload area">
-                    <h2>Upload Notebook</h2>
+                    <h3>Upload Notebook</h3>
                     <p>Drag and drop a .ipynb file here, or click to browse</p>
                     <div class="file-input-wrapper">
-                        <label class="btn" for="file-input" role="button" tabindex="0">
+                        <button type="button" class="btn" id="choose-file-btn"
+                                aria-label="Choose a notebook file">
                             Choose File
-                        </label>
+                        </button>
                         <input type="file" id="file-input" name="notebook"
                                accept=".ipynb,application/json"
                                aria-describedby="file-name-display">
@@ -1395,7 +1427,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 
             <div class="status" id="status" role="alert" aria-live="assertive"></div>
 
-            <div class="result-actions" id="result-actions">
+            <div class="result-actions" id="result-actions" role="group" aria-label="Conversion result actions">
                 <button class="btn" id="download-btn" aria-label="Download converted HTML file">
                     Download HTML
                 </button>
@@ -1408,7 +1440,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             </div>
 
             <iframe class="preview-frame" id="preview-frame"
-                    title="Notebook preview" aria-label="Converted notebook preview"></iframe>
+                    title="Converted notebook preview"></iframe>
         </main>
 
         <footer role="contentinfo">
@@ -1484,6 +1516,8 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '                --accent-hover: #66b3ff;',
 '                --border-color: #999999;',
 '                --output-bg: #2a2a2a;',
+'                --success-color: #4caf50;',
+'                --error-color: #ff6b6b;',
 '            }',
 '        }',
 '        * { margin: 0; padding: 0; box-sizing: border-box; }',
@@ -1557,7 +1591,8 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '        .visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border-width: 0; }',
 '        *:focus { outline: 3px solid var(--accent-primary); outline-offset: 2px; }',
 '        @media print { body { font-size: 12pt; line-height: 1.5; } .toolbar, .run-button { display: none; } .cell { page-break-inside: avoid; } }',
-'        @media (prefers-contrast: high) { :root { --border-color: #000000; --accent-primary: #0000ff; --bg-code: #000000; --text-code: #ffffff; } }',
+'        @media (prefers-contrast: high) { :root { --border-color: #000000; --accent-primary: #0000ff; --bg-code: #000000; --text-code: #ffffff; --success-color: #006400; --error-color: #cc0000; } }',
+'        @media (prefers-contrast: high) and (prefers-color-scheme: dark) { :root { --border-color: #ffffff; --accent-primary: #6699ff; --bg-code: #000000; --text-code: #ffffff; --success-color: #66ff66; --error-color: #ff6666; } }',
 '        @media (prefers-reduced-motion: reduce) { * { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; } }',
 '        @media (max-width: 768px) { body { font-size: 16px; padding: 10px; } .header { padding: 20px; } .toolbar { flex-direction: column; align-items: stretch; } .btn { width: 100%; justify-content: center; } .code-input pre { font-size: 14px; } }',
 '    </style>',
@@ -1581,7 +1616,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '            </button>',
 '        </nav>',
 '        <main id="main-content" role="main">',
-'            <div id="notebook" aria-label="Notebook cells"></div>',
+'            <div id="notebook" role="region" aria-label="Notebook cells"></div>',
 '        </main>',
 '    </div>',
 '    <script>',
@@ -1641,7 +1676,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '            cellDiv.className = "cell " + (cell.type === "code" ? "code-cell" : "markdown-cell");',
 '            cellDiv.id = "cell-" + index;',
 '            cellDiv.setAttribute("role", "article");',
-'            cellDiv.setAttribute("aria-label", cell.type + " cell " + index);',
+'            cellDiv.setAttribute("aria-label", cell.type + " cell " + (index + 1));',
 '            if (cell.type === "markdown") {',
 '                cellDiv.innerHTML = "<div class=\\"cell-content\\"><div class=\\"markdown-content\\">" + renderMarkdown(cell.content) + "</div></div>";',
 '            } else {',
@@ -1651,7 +1686,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '                cellDiv.innerHTML =',
 '                    "<div class=\\"cell-header\\"><span class=\\"cell-number\\" aria-label=\\"Cell number\\">" + execLabel + "</span></div>" +',
 '                    "<div class=\\"cell-content\\"><div class=\\"code-input\\" role=\\"region\\" aria-label=\\"Code input\\">" +',
-'                    "<button class=\\"run-button\\" onclick=\\"executeCell(" + index + ")\\" aria-label=\\"Run cell " + index + "\\">Run Cell</button>" +',
+'                    "<button class=\\"run-button\\" onclick=\\"executeCell(" + index + ")\\" aria-label=\\"Run cell " + (index + 1) + "\\">Run Cell</button>" +',
 '                    "<pre><code class=\\"language-" + PRISM_LANG + "\\">" + escapeHtml(cell.content) + "</code></pre>" +',
 '                    "</div><div class=\\"output-area" + (outputVisible ? "" : " hidden") + "\\" id=\\"output-" + index + "\\" role=\\"region\\" aria-label=\\"Cell output\\" aria-live=\\"polite\\">" + outputContent + "</div></div>";',
 '            }',
@@ -1848,8 +1883,12 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
                         htmlParts.push('<div class="latex-output">' + joinField(data['text/latex']) + '</div>');
                         hasRich = true;
                     }
-                    // Google Colaboratory intrinsic JSON - coexists with text/html
+                    // Google Colaboratory intrinsic JSON - coexists with text/html;
+                    // use text/plain fallback when no other rich output was captured
                     if (data['application/vnd.google.colaboratory.intrinsic+json']) {
+                        if (!hasRich && data['text/plain']) {
+                            textParts.push(joinField(data['text/plain']));
+                        }
                         hasRich = true;
                     }
                     // Jupyter interactive widget - use text fallback
@@ -1958,6 +1997,10 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             fileInput.click();
         });
 
+        document.getElementById('choose-file-btn').addEventListener('click', function() {
+            fileInput.click();
+        });
+
         fileInput.addEventListener('change', function() {
             if (fileInput.files.length > 0) {
                 onFileSelected(fileInput.files[0]);
@@ -2028,6 +2071,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             var blob = new Blob([convertedHtml], { type: 'text/html' });
             var url = URL.createObjectURL(blob);
             window.open(url, '_blank');
+            setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
         });
 
         function showStatus(msg, type) {
