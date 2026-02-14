@@ -1918,6 +1918,36 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
             return div.innerHTML;
         }
 
+        var SAFE_TAGS_RE = /^(?:a|abbr|b|blockquote|br|caption|code|col|colgroup|dd|del|details|dfn|div|dl|dt|em|figcaption|figure|h[1-6]|hr|i|img|ins|kbd|li|mark|ol|p|pre|q|rp|rt|ruby|s|samp|small|span|strong|sub|summary|sup|svg|table|tbody|td|tfoot|th|thead|tr|u|ul|var|wbr|circle|clippath|defs|ellipse|g|line|linearGradient|marker|mask|path|pattern|polygon|polyline|radialGradient|rect|stop|text|tspan)$/i;
+        var SAFE_ATTRS_RE = /^(?:alt|border|cellpadding|cellspacing|class|colspan|dir|height|href|id|lang|name|role|rowspan|scope|src|style|summary|tabindex|title|valign|width|cx|cy|d|dx|dy|fill|fill-opacity|fill-rule|font-family|font-size|font-weight|gradientTransform|gradientUnits|markerHeight|markerWidth|offset|opacity|orient|patternUnits|points|preserveAspectRatio|r|refX|refY|rx|ry|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-linecap|stroke-linejoin|stroke-opacity|stroke-width|text-anchor|transform|viewBox|x|x1|x2|xmlns|y|y1|y2)$/i;
+        function sanitizeHtml(html) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            function walk(node) {
+                var ch = Array.from(node.childNodes);
+                for (var i = 0; i < ch.length; i++) {
+                    var c = ch[i];
+                    if (c.nodeType === 1) {
+                        if (!SAFE_TAGS_RE.test(c.tagName)) { c.remove(); continue; }
+                        var attrs = Array.from(c.attributes);
+                        for (var j = 0; j < attrs.length; j++) {
+                            var n = attrs[j].name.toLowerCase();
+                            if (n.startsWith('on') || !SAFE_ATTRS_RE.test(n)) {
+                                c.removeAttribute(attrs[j].name);
+                            } else if (n === 'href' || n === 'src' || n === 'action') {
+                                if (/^\s*(?:javascript|vbscript|data)\s*:/i.test(attrs[j].value)) {
+                                    c.removeAttribute(attrs[j].name);
+                                }
+                            }
+                        }
+                        walk(c);
+                    }
+                }
+            }
+            walk(tmp);
+            return tmp.innerHTML;
+        }
+
         function stripAnsi(str) {
             return str.replace(/\x1b\[[0-9;:]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
         }
