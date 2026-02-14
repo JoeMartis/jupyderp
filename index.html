@@ -517,6 +517,13 @@
 '            div.textContent = text;',
 '            return div.innerHTML;',
 '        }',
+'        var SAFE_TAGS = /^(?:a|abbr|b|blockquote|br|caption|code|col|colgroup|dd|del|details|dfn|div|dl|dt|em|figcaption|figure|h[1-6]|hr|i|img|ins|kbd|li|mark|ol|p|pre|q|rp|rt|ruby|s|samp|small|span|strong|sub|summary|sup|svg|table|tbody|td|tfoot|th|thead|tr|u|ul|var|wbr|circle|clippath|defs|ellipse|g|line|linearGradient|marker|mask|path|pattern|polygon|polyline|radialGradient|rect|stop|text|tspan)$/i;',
+'        var SAFE_ATTRS = /^(?:alt|border|cellpadding|cellspacing|class|colspan|dir|height|href|id|lang|name|role|rowspan|scope|src|style|summary|tabindex|title|valign|width|cx|cy|d|dx|dy|fill|fill-opacity|fill-rule|font-family|font-size|font-weight|gradientTransform|gradientUnits|markerHeight|markerWidth|offset|opacity|orient|patternUnits|points|preserveAspectRatio|r|refX|refY|rx|ry|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-linecap|stroke-linejoin|stroke-opacity|stroke-width|text-anchor|transform|viewBox|x|x1|x2|xmlns|y|y1|y2)$/i;',
+'        function sanitizeHtml(h) {',
+'            var tmp = document.createElement("div"); tmp.innerHTML = h;',
+'            function walk(node) { var ch = Array.from(node.childNodes); for (var i = 0; i < ch.length; i++) { var c = ch[i]; if (c.nodeType === 1) { if (!SAFE_TAGS.test(c.tagName)) { c.remove(); continue; } var attrs = Array.from(c.attributes); for (var j = 0; j < attrs.length; j++) { var n = attrs[j].name.toLowerCase(); if (n.startsWith("on") || !SAFE_ATTRS.test(n)) { c.removeAttribute(attrs[j].name); } else if (n === "href" || n === "src" || n === "action") { if (/^\\s*(?:javascript|vbscript|data)\\s*:/i.test(attrs[j].value)) { c.removeAttribute(attrs[j].name); } } } walk(c); } } }',
+'            walk(tmp); return tmp.innerHTML;',
+'        }',
 '        function renderMarkdown(content) {',
 '            var mathBlocks = [];',
 '            function stash(match) { var id = "\\x00MATH" + mathBlocks.length + "\\x00"; mathBlocks.push(match); return id; }',
@@ -546,7 +553,7 @@
 '        function buildOutputHtml(cell) {',
 '            var parts = [];',
 '            if (cell.output) { parts.push(escapeHtml(cell.output)); }',
-'            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + cell.outputHtml + "</div>"); }',
+'            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + sanitizeHtml(cell.outputHtml) + "</div>"); }',
 '            if (cell.images && cell.images.length) {',
 '                for (var i = 0; i < cell.images.length; i++) {',
 '                    var mime = (cell.images[i] && cell.images[i].mime) ? cell.images[i].mime : "image/png";',
@@ -685,7 +692,7 @@
         }
 
         function stripAnsi(str) {
-            return str.replace(/\x1b\[[0-9;]*m/g, '');
+            return str.replace(/\x1b\[[0-9;:]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
         }
 
         function detectKernelLanguage(nb) {
@@ -761,15 +768,15 @@
                         hasRich = true;
                     }
                     if (data['image/svg+xml']) {
-                        htmlParts.push(joinField(data['image/svg+xml']));
+                        htmlParts.push(sanitizeHtml(joinField(data['image/svg+xml'])));
                         hasRich = true;
                     }
                     if (data['text/html']) {
-                        htmlParts.push(joinField(data['text/html']));
+                        htmlParts.push(sanitizeHtml(joinField(data['text/html'])));
                         hasRich = true;
                     }
                     if (data['text/latex']) {
-                        htmlParts.push('<div class="latex-output">' + joinField(data['text/latex']) + '</div>');
+                        htmlParts.push('<div class="latex-output">' + escapeHtmlStr(joinField(data['text/latex'])) + '</div>');
                         hasRich = true;
                     }
                     // Google Colaboratory intrinsic JSON - coexists with text/html;

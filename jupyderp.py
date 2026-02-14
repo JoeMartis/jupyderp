@@ -47,14 +47,82 @@ def _join(lines) -> str:
     return lines or ""
 
 
+_SAFE_TAGS = frozenset({
+    "a", "abbr", "b", "blockquote", "br", "caption", "code", "col",
+    "colgroup", "dd", "del", "details", "dfn", "div", "dl", "dt", "em",
+    "figcaption", "figure", "h1", "h2", "h3", "h4", "h5", "h6", "hr",
+    "i", "img", "ins", "kbd", "li", "mark", "ol", "p", "pre", "q", "rp",
+    "rt", "ruby", "s", "samp", "small", "span", "strong", "sub", "summary",
+    "sup", "svg", "table", "tbody", "td", "tfoot", "th", "thead", "tr",
+    "u", "ul", "var", "wbr",
+    # SVG safe elements
+    "circle", "clippath", "defs", "ellipse", "g", "line", "linearGradient",
+    "marker", "mask", "path", "pattern", "polygon", "polyline", "radialGradient",
+    "rect", "stop", "text", "tspan",
+})
+_SAFE_ATTRS = frozenset({
+    "alt", "border", "cellpadding", "cellspacing", "class", "colspan",
+    "dir", "height", "href", "id", "lang", "name", "role", "rowspan",
+    "scope", "src", "style", "summary", "tabindex", "title", "valign",
+    "width",
+    # SVG safe attributes
+    "cx", "cy", "d", "dx", "dy", "fill", "fill-opacity", "fill-rule",
+    "font-family", "font-size", "font-weight", "gradientTransform",
+    "gradientUnits", "markerHeight", "markerWidth", "offset", "opacity",
+    "orient", "patternUnits", "points", "preserveAspectRatio", "r", "refX",
+    "refY", "rx", "ry", "stop-color", "stop-opacity", "stroke",
+    "stroke-dasharray", "stroke-linecap", "stroke-linejoin",
+    "stroke-opacity", "stroke-width", "text-anchor", "transform",
+    "viewBox", "x", "x1", "x2", "xmlns", "y", "y1", "y2",
+})
+_DANGEROUS_URL_SCHEMES = _re.compile(
+    r"^\s*(?:javascript|vbscript|data)\s*:", _re.IGNORECASE
+)
+
+
 def _sanitize_html(html_str: str) -> str:
-    """Strip dangerous tags/attributes from HTML output to prevent XSS."""
-    # Remove <script>...</script> blocks
-    html_str = _re.sub(r"<script[\s>][\s\S]*?</script>", "", html_str, flags=_re.IGNORECASE)
-    # Remove event handler attributes (onclick, onerror, onload, etc.)
-    html_str = _re.sub(r'\s+on\w+\s*=\s*(?:"[^"]*"|\'[^\']*\'|[^\s>]+)', "", html_str, flags=_re.IGNORECASE)
-    # Remove javascript: URLs in href/src/action
-    html_str = _re.sub(r'((?:href|src|action)\s*=\s*(?:"|\'))javascript:', r"\1#", html_str, flags=_re.IGNORECASE)
+    """Allowlist-based HTML sanitizer: keeps only safe tags and attributes."""
+    def _replace_tag(m: _re.Match) -> str:
+        full = m.group(0)
+        tag_name = m.group(2).lower()
+        # Closing tag
+        if full.startswith("</"):
+            return full if tag_name in _SAFE_TAGS else ""
+        # Opening/self-closing tag
+        if tag_name not in _SAFE_TAGS:
+            return ""
+        # Filter attributes
+        attr_str = m.group(3) or ""
+        safe_attrs = []
+        for am in _re.finditer(
+            r'([\w-]+)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|(\S+))', attr_str
+        ):
+            attr_name = am.group(1).lower()
+            attr_val = am.group(2) if am.group(2) is not None else (
+                am.group(3) if am.group(3) is not None else am.group(4)
+            )
+            if attr_name.startswith("on"):
+                continue
+            if attr_name not in _SAFE_ATTRS:
+                continue
+            if attr_name in ("href", "src", "action"):
+                if _DANGEROUS_URL_SCHEMES.match(attr_val):
+                    continue
+            safe_attrs.append(f'{attr_name}="{html.escape(attr_val, quote=True)}"')
+        closing = "/" if full.rstrip().endswith("/>") else ""
+        attrs = (" " + " ".join(safe_attrs)) if safe_attrs else ""
+        return f"<{tag_name}{attrs}{closing}>"
+
+    # Match HTML tags, handling quoted attributes that may contain '>'
+    _tag_re = _re.compile(
+        r'<(/?)(\w+)((?:\s+(?:[^>"\']*(?:"[^"]*"|\'[^\']*\'))*[^>"\']*)?)\s*/?>',
+    )
+    # Loop to handle nested tag bypass (e.g. <scri<script></script>pt>)
+    for _ in range(5):
+        result = _tag_re.sub(_replace_tag, html_str)
+        if result == html_str:
+            break
+        html_str = result
     return html_str
 
 
@@ -836,6 +904,39 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
             return div.innerHTML;
         }
 
+        var SAFE_TAGS = /^(?:a|abbr|b|blockquote|br|caption|code|col|colgroup|dd|del|details|dfn|div|dl|dt|em|figcaption|figure|h[1-6]|hr|i|img|ins|kbd|li|mark|ol|p|pre|q|rp|rt|ruby|s|samp|small|span|strong|sub|summary|sup|svg|table|tbody|td|tfoot|th|thead|tr|u|ul|var|wbr|circle|clippath|defs|ellipse|g|line|linearGradient|marker|mask|path|pattern|polygon|polyline|radialGradient|rect|stop|text|tspan)$/i;
+        var SAFE_ATTRS = /^(?:alt|border|cellpadding|cellspacing|class|colspan|dir|height|href|id|lang|name|role|rowspan|scope|src|style|summary|tabindex|title|valign|width|cx|cy|d|dx|dy|fill|fill-opacity|fill-rule|font-family|font-size|font-weight|gradientTransform|gradientUnits|markerHeight|markerWidth|offset|opacity|orient|patternUnits|points|preserveAspectRatio|r|refX|refY|rx|ry|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-linecap|stroke-linejoin|stroke-opacity|stroke-width|text-anchor|transform|viewBox|x|x1|x2|xmlns|y|y1|y2)$/i;
+        function sanitizeHtml(html) {
+            var tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            function walk(node) {
+                var children = Array.from(node.childNodes);
+                for (var i = 0; i < children.length; i++) {
+                    var child = children[i];
+                    if (child.nodeType === 1) {
+                        if (!SAFE_TAGS.test(child.tagName)) {
+                            child.remove();
+                            continue;
+                        }
+                        var attrs = Array.from(child.attributes);
+                        for (var j = 0; j < attrs.length; j++) {
+                            var name = attrs[j].name.toLowerCase();
+                            if (name.startsWith('on') || !SAFE_ATTRS.test(name)) {
+                                child.removeAttribute(attrs[j].name);
+                            } else if (name === 'href' || name === 'src' || name === 'action') {
+                                if (/^\s*(?:javascript|vbscript|data)\s*:/i.test(attrs[j].value)) {
+                                    child.removeAttribute(attrs[j].name);
+                                }
+                            }
+                        }
+                        walk(child);
+                    }
+                }
+            }
+            walk(tmp);
+            return tmp.innerHTML;
+        }
+
         function renderMarkdown(content) {
             // Protect LaTeX blocks from marked.js processing.
             // marked.js interprets underscores as italics, asterisks as
@@ -899,7 +1000,7 @@ _HTML_TEMPLATE = r"""<!DOCTYPE html>
                 parts.push(escapeHtml(cell.output));
             }
             if (cell.outputHtml) {
-                parts.push('<div class="html-output">' + cell.outputHtml + '</div>');
+                parts.push('<div class="html-output">' + sanitizeHtml(cell.outputHtml) + '</div>');
             }
             if (cell.images && cell.images.length) {
                 for (const img of cell.images) {
@@ -1643,6 +1744,13 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '            div.textContent = text;',
 '            return div.innerHTML;',
 '        }',
+'        var SAFE_TAGS = /^(?:a|abbr|b|blockquote|br|caption|code|col|colgroup|dd|del|details|dfn|div|dl|dt|em|figcaption|figure|h[1-6]|hr|i|img|ins|kbd|li|mark|ol|p|pre|q|rp|rt|ruby|s|samp|small|span|strong|sub|summary|sup|svg|table|tbody|td|tfoot|th|thead|tr|u|ul|var|wbr|circle|clippath|defs|ellipse|g|line|linearGradient|marker|mask|path|pattern|polygon|polyline|radialGradient|rect|stop|text|tspan)$/i;',
+'        var SAFE_ATTRS = /^(?:alt|border|cellpadding|cellspacing|class|colspan|dir|height|href|id|lang|name|role|rowspan|scope|src|style|summary|tabindex|title|valign|width|cx|cy|d|dx|dy|fill|fill-opacity|fill-rule|font-family|font-size|font-weight|gradientTransform|gradientUnits|markerHeight|markerWidth|offset|opacity|orient|patternUnits|points|preserveAspectRatio|r|refX|refY|rx|ry|stop-color|stop-opacity|stroke|stroke-dasharray|stroke-linecap|stroke-linejoin|stroke-opacity|stroke-width|text-anchor|transform|viewBox|x|x1|x2|xmlns|y|y1|y2)$/i;',
+'        function sanitizeHtml(h) {',
+'            var tmp = document.createElement("div"); tmp.innerHTML = h;',
+'            function walk(node) { var ch = Array.from(node.childNodes); for (var i = 0; i < ch.length; i++) { var c = ch[i]; if (c.nodeType === 1) { if (!SAFE_TAGS.test(c.tagName)) { c.remove(); continue; } var attrs = Array.from(c.attributes); for (var j = 0; j < attrs.length; j++) { var n = attrs[j].name.toLowerCase(); if (n.startsWith("on") || !SAFE_ATTRS.test(n)) { c.removeAttribute(attrs[j].name); } else if (n === "href" || n === "src" || n === "action") { if (/^\\s*(?:javascript|vbscript|data)\\s*:/i.test(attrs[j].value)) { c.removeAttribute(attrs[j].name); } } } walk(c); } } }',
+'            walk(tmp); return tmp.innerHTML;',
+'        }',
 '        function renderMarkdown(content) {',
 '            var mathBlocks = [];',
 '            function stash(match) { var id = "\\x00MATH" + mathBlocks.length + "\\x00"; mathBlocks.push(match); return id; }',
@@ -1672,7 +1780,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
 '        function buildOutputHtml(cell) {',
 '            var parts = [];',
 '            if (cell.output) { parts.push(escapeHtml(cell.output)); }',
-'            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + cell.outputHtml + "</div>"); }',
+'            if (cell.outputHtml) { parts.push("<div class=\\"html-output\\">" + sanitizeHtml(cell.outputHtml) + "</div>"); }',
 '            if (cell.images && cell.images.length) {',
 '                for (var i = 0; i < cell.images.length; i++) {',
 '                    var mime = (cell.images[i] && cell.images[i].mime) ? cell.images[i].mime : "image/png";',
@@ -1811,7 +1919,7 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
         }
 
         function stripAnsi(str) {
-            return str.replace(/\x1b\[[0-9;]*m/g, '');
+            return str.replace(/\x1b\[[0-9;:]*[A-Za-z]|\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '');
         }
 
         function detectKernelLanguage(nb) {
@@ -1887,15 +1995,15 @@ _UPLOAD_PAGE = r"""<!DOCTYPE html>
                         hasRich = true;
                     }
                     if (data['image/svg+xml']) {
-                        htmlParts.push(joinField(data['image/svg+xml']));
+                        htmlParts.push(sanitizeHtml(joinField(data['image/svg+xml'])));
                         hasRich = true;
                     }
                     if (data['text/html']) {
-                        htmlParts.push(joinField(data['text/html']));
+                        htmlParts.push(sanitizeHtml(joinField(data['text/html'])));
                         hasRich = true;
                     }
                     if (data['text/latex']) {
-                        htmlParts.push('<div class="latex-output">' + joinField(data['text/latex']) + '</div>');
+                        htmlParts.push('<div class="latex-output">' + escapeHtmlStr(joinField(data['text/latex'])) + '</div>');
                         hasRich = true;
                     }
                     // Google Colaboratory intrinsic JSON - coexists with text/html;
@@ -2210,8 +2318,8 @@ class JupyderpHandler(BaseHTTPRequestHandler):
 
 def start_server(port: int = 8000):
     """Launch the jupyderp web interface."""
-    server = HTTPServer(("", port), JupyderpHandler)
-    print(f"jupyderp web interface running at http://localhost:{port}")
+    server = HTTPServer(("127.0.0.1", port), JupyderpHandler)
+    print(f"jupyderp web interface running at http://127.0.0.1:{port}")
     print("Press Ctrl+C to stop.")
     try:
         server.serve_forever()
